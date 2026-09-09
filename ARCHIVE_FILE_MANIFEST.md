@@ -24,6 +24,7 @@
 
 | 文件 | 用途 |
 |---|---|
+| `persistence.py` | v0.3 新增：确定性 JSON 存档/加载/导出（format_version=chain-v1），原子写入、哈希校验、账本与纪元快照重放重建 |
 | `block_model.py` | 不可变区块数据模型：`Block`/`Proposal`/`PoiRecord`/`TestCase`，SHA256 区块哈希、`canonical_bytes()`、创世块构造 |
 | `mock_tokenizer.py` | PoI mock 标准分词器：确定性词元计数（`mock-tokenizer-v1`），不调用外部模型 |
 | `block_validator.py` | 6 阶段区块合法性校验流水线（签名→结构→内核→PoI→解析→沙箱→UTXO），返回 `ValidationResult` |
@@ -71,7 +72,8 @@
 | `tests/test_utxo.py` | 6 | 奖励、转账、双花、错误签名、超额输出、休眠分支隔离 |
 | `tests/test_epoch.py` | 6 | 纪元编号、构造校验、99/100 边界、归档快照、休眠分支 |
 | `tests/test_http_api.py` | 8 | HTTP API 端到端：chain-state/propose/eval/index.html |
-| **合计** | **72** | 全部通过 |
+| `tests/test_persistence.py` | 8 | v0.3 新增：存档 roundtrip 等值、HTTP 一致性、损坏拒绝、--fresh、导出 |
+| **合计** | **80** | 全部通过 |
 
 ## 五、归档文档（本次新增，均为 Markdown）
 
@@ -82,6 +84,8 @@
 | `ARCHIVE_FILE_MANIFEST.md` | 本文件：完整文件清单 |
 | `DEMO_SCRIPT_v0_2.md` | 人工演示操作脚本（给演示者照着执行） |
 | `REFERENCE_DOCS_INDEX.md` | 全部历史设计文档索引 |
+| `CHANGELOG_v0_3.md` | v0.3 版本变更日志（阶段 A：git 基线 + 磁盘持久化） |
+| `PERSISTENCE_IMPLEMENTATION.md` | v0.3 持久化实现说明：格式、恢复策略、私钥安全边界、已知限制 |
 
 ## 六、历史设计文档（保留供参考）
 

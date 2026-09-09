@@ -4,24 +4,31 @@
 （ecdsa 为项目既有依赖）。监听 127.0.0.1:28417，仅限本机访问，不支持公网。
 
 本服务加载全部 StratumGenesis 单机模块，启动时初始化创世链并预沉积一段
-演示地层；所有状态保存在内存，服务关闭即全部丢失。
+演示地层；状态默认持久化到 data/chain_v1.json（实验级 JSON 存档，非生产级
+存储）：若存档存在则加载继续，否则重建演示链并立即落盘；每次链状态变更后
+自动保存；--fresh 可忽略存档从创世重建。
 
 已知局限（与全局项目一致）：
 1. LLM 摘要未来会有信息衰减与幻觉风险；摘要链仅线性低速增长（本版本无摘要）。
 2. 共识仅适配小规模仿真网络；这里只是单进程串行处理，无真实网络。
 3. 沙箱是教学级纯计算隔离，不是生产安全容器。
 4. 纯非金融激励存在参与者流失风险。
-5. 无 P2P、无磁盘持久化、无公网部署、无身份鉴权、无可交易代币。
+5. 存档为实验级 JSON 持久化：无加密、私钥明文落盘、无校验和校验之外的恢复保障；
+   无 P2P、无公网部署、无身份鉴权、无可交易代币。
 """
 
 from __future__ import annotations
 
+import argparse
 import base64
 import json
 import os
+import sys
 import threading
 from dataclasses import dataclass, field, replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import persistence
 
 from block_model import Block, PoiRecord, Proposal, TestCase
 from block_validator import MIN_POI_TOKENS, validate_block
@@ -40,6 +47,10 @@ PORT = 28417
 # 以 server.py 所在目录定位 index.html，避免因启动时工作目录不同而 404。
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INDEX_PATH = os.path.join(BASE_DIR, "index.html")
+# 默认存档路径（data/chain_v1.json，已在 .gitignore 中排除）。
+DEFAULT_PERSIST_PATH = os.path.join(BASE_DIR, "data", persistence.DEFAULT_ARCHIVE_NAME)
+# 自动保存的串行锁：ThreadingHTTPServer 多线程下避免并发写同一 tmp 文件。
+_SAVE_LOCK = threading.Lock()
 
 # 真实沙箱错误类型 -> 中文分类（前端直接展示）
 ERROR_LABELS = {
@@ -173,9 +184,55 @@ class ServerState:
     registry: MinerRegistry = field(default_factory=MinerRegistry)
     rejection_reasons: dict[str, str] = field(default_factory=dict)
     seed_count: int = 102
+    # 存档路径；为 None 时禁用自动保存（测试/独立构造默认禁用，避免污染 data/）。
+    persist_path: str | None = None
 
     def __post_init__(self) -> None:
-        seed_demo_chain(self.store, self.registry, self.seed_count)
+        # 仅当主链只有创世块（height==0）时才预沉积演示地层；
+        # 从存档恢复的状态（height>0）不再重复预沉积。
+        if self.store.height == 0:
+            seed_demo_chain(self.store, self.registry, self.seed_count)
+
+
+def _auto_save(state: ServerState) -> None:
+    """链状态变更后自动落盘；保存失败只打印中文警告，不影响本次内存操作。"""
+    if not state.persist_path:
+        return
+    try:
+        with _SAVE_LOCK:
+            persistence.save_state(
+                state.persist_path, state.store, state.registry.miners, state.rejection_reasons
+            )
+    except Exception as error:  # 保存失败不得影响 API 结果
+        print(f"[警告] 自动保存存档失败（不影响本次操作结果）：{error}")
+
+
+def build_server_state(
+    *,
+    fresh: bool = False,
+    persist_path: str = DEFAULT_PERSIST_PATH,
+) -> ServerState:
+    """按启动策略构建服务状态。
+
+    - fresh=True：忽略存档，从创世重建演示链（预沉积 102 块）并立即落盘；
+    - 存档不存在：维持 v0.2 行为（创世 + 预沉积 102 块）并立即落盘；
+    - 存档存在：加载并校验后继续（不再预沉积）；损坏/版本不匹配抛 PersistenceError。
+    """
+    if fresh or not os.path.exists(persist_path):
+        state = ServerState(persist_path=persist_path)
+        _auto_save(state)
+        return state
+    data = persistence.load_state(persist_path)
+    store = persistence.rebuild_store(data["blocks"], data["sleeping_branches"])
+    registry = MinerRegistry(miners=persistence.miners_from_list(data["miners"]))
+    return ServerState(
+        store=store,
+        pool=CandidatePool(),
+        registry=registry,
+        rejection_reasons=dict(data["rejection_reasons"]),
+        seed_count=0,
+        persist_path=persist_path,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +277,9 @@ def api_chain_state(state: ServerState) -> dict:
                 "reason": state.rejection_reasons.get(block.block_hash, "休眠/落选区块"),
             })
     miners = []
-    for public_key in state.registry.miners:
+    # 按公钥字节稳定排序输出，保证「保存前/加载后」chain-state 完全一致；
+    # 排序只影响数组顺序，不影响任何字段内容（前端按序轮换矿工，无副作用）。
+    for public_key in sorted(state.registry.miners, key=lambda key: key):
         label, _ = state.registry.miners[public_key]
         miners.append({
             "label": label,
@@ -276,6 +335,7 @@ def api_propose(state: ServerState, body: dict) -> dict:
         except ValueError:
             pass
         state.rejection_reasons[block.block_hash] = f"{result.stage}: {result.error_code}"
+        _auto_save(state)
         return {"success": False, "reason": f"校验未通过（{result.stage}）", "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
                 "is_sleeping_branch": True, "chain_height": store.height}
 
@@ -289,6 +349,8 @@ def api_propose(state: ServerState, body: dict) -> dict:
     weights = calculate_historical_weights(store.main_chain())
     vote = resolve_conflict(candidates, weights)
     store.apply_vote_result(vote)
+    # 链状态已变更（胜者上链 / 落选或平票入休眠分支），立即自动保存。
+    _auto_save(state)
 
     if vote.status == "vote_tie":
         return {"success": False, "reason": "同高度冲突且权重平票，全部进入休眠分支", "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
@@ -374,7 +436,11 @@ def build_handler(state: ServerState):
 
 
 def create_server(state: ServerState | None = None) -> ThreadingHTTPServer:
-    """创建绑定 127.0.0.1:28417 的服务器；每次调用重建全新内存状态。"""
+    """创建绑定 127.0.0.1:28417 的服务器。
+
+    测试与独立构造默认传 None：ServerState() 的 persist_path=None 禁用自动保存，
+    避免测试污染 data/ 存档；正式启动由 main() 传入带存档路径的状态。
+    """
     state = state or ServerState()
     handler = build_handler(state)
     httpd = ThreadingHTTPServer((HOST, PORT), handler)
@@ -382,11 +448,40 @@ def create_server(state: ServerState | None = None) -> ThreadingHTTPServer:
     return httpd
 
 
-def main() -> None:
-    httpd = create_server()
-    print("StratumGenesis 本地服务已启动（内存仿真，关闭即清空）")
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="StratumGenesis 本地服务")
+    parser.add_argument("--fresh", action="store_true",
+                        help="忽略存档，从创世重建并重新预沉积演示地层（演示复位用）")
+    parser.add_argument("--archive", metavar="PATH", default=DEFAULT_PERSIST_PATH,
+                        help=f"存档文件路径（默认 {DEFAULT_PERSIST_PATH}）")
+    parser.add_argument("--export", metavar="PATH", default=None,
+                        help="校验当前存档并导出到指定路径后退出（与存档相同格式）")
+    args = parser.parse_args(argv)
+
+    # 导出模式：不启动服务，校验源存档后原样写入目标路径。
+    if args.export is not None:
+        try:
+            data = persistence.load_state(args.archive)
+            persistence.write_export(args.export, data)
+        except persistence.PersistenceError as error:
+            print(f"[错误] 导出失败：{error}")
+            sys.exit(1)
+        print(f"[导出完成] {args.archive} -> {args.export}（format_version=chain-v1）")
+        return
+
+    try:
+        state = build_server_state(fresh=args.fresh, persist_path=args.archive)
+    except persistence.PersistenceError as error:
+        print(f"[错误] 存档加载失败：{error}")
+        print("提示：如需忽略存档重建演示链，请使用 python server.py --fresh")
+        sys.exit(1)
+
+    httpd = create_server(state)
+    print("StratumGenesis 本地服务已启动")
     print(f"  访问地址：http://{HOST}:{PORT}/index.html")
-    print(f"  当前主链高度：{httpd.state.store.height}")  # type: ignore[attr-defined]
+    print(f"  当前主链高度：{state.store.height}")
+    print(f"  存档路径：{args.archive}（每次链状态变更自动保存）")
+    print("  提示：--fresh 可忽略存档重建演示链；--export 可导出链数据")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

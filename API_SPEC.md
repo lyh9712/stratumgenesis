@@ -188,6 +188,45 @@ Content-Type: application/json
 
 ---
 
+## 5. 磁盘持久化与链数据导出（v0.3 新增）
+
+### 存档路径
+
+- 默认存档：`data/chain_v1.json`（项目根目录下，已在 .gitignore 中排除）；
+- 格式：JSON，`format_version=chain-v1`；内容为主链全部区块、休眠分支（分支标识 + 区块序列 + 拒绝原因）、矿工注册表（含私钥）；
+- UTXO 账本与纪元快照不在存档中序列化，加载时从主链按既有规则确定性重建；
+- 写入采用临时文件 + 原子替换，逐区块 SHA-256 哈希校验。
+
+### 启动 / 复位
+
+```bash
+# 有存档则加载继续；无存档则预沉积 102 演示块并立即落盘
+python server.py
+
+# 忽略存档，从创世重建演示链（演示复位用）
+python server.py --fresh
+
+# 指定存档路径
+python server.py --archive data/my_chain.json
+```
+
+- 每次链状态变更（成功上链 / 候选入休眠分支）后自动保存；保存失败打印中文警告，不影响本次操作。
+- 存档缺失/损坏/format_version 不匹配：中文明确报错并**拒绝启动**，提示使用 `--fresh`。
+
+### 导出
+
+```bash
+# 校验当前存档并导出到指定路径（与存档相同格式），导出后退出不启动服务
+python server.py --export data/chain_v1_export.json
+
+# 等价 CLI
+python persistence.py export data/chain_v1_export.json
+```
+
+### 安全边界
+
+矿工私钥为原型本地演示密钥，明文保存在本机存档中；无加密、无生产安全承诺，仅限本机实验使用。
+
 ## 测试
 
 ```bash
@@ -202,7 +241,7 @@ python -m compileall -q *.py tests/*.py
 
 ## 已知限制
 
-1. 无 P2P、无磁盘持久化、无公网部署、无身份鉴权、无 HTTPS、无数据库；服务关闭所有状态丢失。
+1. 无 P2P、无公网部署、无身份鉴权、无 HTTPS、无数据库；持久化仅为实验级 JSON 存档（默认 data/chain_v1.json，无加密，服务关闭后仅存档保留，内存候选池等易失状态丢失）。
 2. ECDSA 仅为实验原型签名，不是生产级密码学。
 3. 沙箱是教学级纯计算隔离，不是生产安全容器。
 4. LLM 摘要（未来模块）存在信息衰减与幻觉风险；摘要链仅线性低速增长。

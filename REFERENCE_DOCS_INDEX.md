@@ -26,6 +26,7 @@
 | `CRYPTO_SIGN_IMPLEMENTATION.md` | 阶段 4 | ECDSA 签名实现说明：canonical_bytes、签名前置校验、实验级密码学边界 |
 | `UTXO_IMPLEMENTATION.md` | 阶段 5 | UTXO 账本实现说明：奖励、转账、双花、余额与投票权重隔离、休眠分支隔离 |
 | `EPOCH_BASE_IMPLEMENTATION.md` | 阶段 6 | 纪元基础实现说明：自动编号、边界事件、快照归档标记、暂未实现（摘要/引种/大断层） |
+| `PERSISTENCE_IMPLEMENTATION.md` | v0.3 阶段 A | 磁盘持久化实现说明：存档格式、保存/恢复策略、为何账本与快照重建而非序列化、私钥安全边界 |
 
 ## 三、接口与使用类（告诉「怎么用」）
 
@@ -43,6 +44,8 @@
 | `CHANGELOG_v0_2.md` | 版本变更日志：按开发阶段记录全部完成点与 Bug 修复 |
 | `ARCHIVE_FILE_MANIFEST.md` | 完整文件清单（源码/测试/演示/文档） |
 | `DEMO_SCRIPT_v0_2.md` | 人工演示操作脚本 |
+| `CHANGELOG_v0_3.md` | v0.3 版本变更日志（阶段 A） |
+| `PERSISTENCE_IMPLEMENTATION.md` | v0.3 持久化实现说明（存档/恢复/导出） |
 
 ## 五、文档与实现的对应关系速查
 

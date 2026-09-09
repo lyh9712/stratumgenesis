@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StratumGenesis · 地层创世实验（本地前后端原型）</title>
+<!--
+  StratumGenesis 地层创世实验 · 前后端打通原型
+  ===========================================
+  本页面不再包含硬编码链数据与 mock 解释器；所有地层数据、提案校验、
+  区块上链、沙箱执行均调用本地 Python 后端 server.py：
+    GET  /chain-state      读取主链/纪元/休眠分支
+    POST /propose          提交语言扩展提案（真实校验+加权投票+上链）
+    POST /eval-novscript   调用真实 NovScript 沙箱执行代码
+  服务监听 http://127.0.0.1:28417 ，仅本机可访问；请先运行 python server.py。
+
+  已知局限（与全局项目一致）：
+  1. LLM 摘要未来会有信息衰减与幻觉风险；摘要链仅线性低速增长。
+  2. 共识仅适配小规模仿真网络；本服务为单进程内存仿真，无 P2P。
+  3. 沙箱是教学级纯计算隔离，不是生产安全容器。
+  4. 纯非金融激励存在参与者流失风险。
+  5. 无磁盘持久化，服务关闭后所有状态清空；无可交易代币或金融功能。
+-->
+<style>
+:root{
+  --bg:#0b0a08;
+  --ink:#e9ddc9;
+  --muted:#a99a84;
+  --faint:#6f6353;
+  --amber:#d99a45;
+  --amber2:#b5752f;
+  --line:rgba(233,221,201,.14);
+  --veil:rgba(8,6,4,.93);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+header{
+  flex:0 0 auto;padding:14px 22px 12px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#14110c,#0d0b08);
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+}
+.brand{min-width:250px}
+.brand h1{margin:0;font-size:19px;letter-spacing:2px;font-weight:600;color:#f0e4cf}
+.brand p{margin:3px 0 0;font-size:12px;color:var(--faint);letter-spacing:1px}
+#proposal-form{flex:1;display:flex;gap:10px;min-width:320px;align-items:center}
+#proposal-input{
+  flex:1;background:#1a160f;border:1px solid var(--line);color:var(--ink);
+  padding:9px 12px;border-radius:6px;font-size:13px;outline:none;
+}
+#proposal-input:focus{border-color:var(--amber2)}
+#deduce-btn{
+  background:linear-gradient(180deg,#d99a45,#a96824);color:#1a1108;border:none;
+  padding:9px 22px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;letter-spacing:1px;
+}
+#deduce-btn:disabled{filter:grayscale(.7);cursor:wait}
+#status{flex:0 0 auto;font-size:12px;color:var(--muted);text-align:right;min-width:240px}
+#status .tick{color:var(--amber)}
+#status .ok{color:#b9c9a4}
+#status .bad{color:#c98a7a}
+.toolbar{display:flex;gap:8px}
+.iconbtn{
+  background:#1a160f;border:1px solid var(--line);color:var(--muted);border-radius:6px;
+  padding:8px 12px;font-size:12px;cursor:pointer;letter-spacing:1px;
+}
+.iconbtn:hover{color:var(--ink);border-color:var(--amber2)}
+main{flex:1;display:flex;overflow:hidden;position:relative}
+#strata{
+  flex:1;overflow-y:auto;position:relative;padding:26px 40px 60px;scroll-behavior:smooth;
+  background:
+    radial-gradient(1200px 500px at 50% -10%, #17130c 0%, transparent 60%),
+    var(--bg);
+}
+#veil{
+  position:absolute;inset:0;pointer-events:none;z-index:40;
+  background:radial-gradient(circle 180px at var(--mx,50%) var(--my,35%),
+    rgba(255,235,200,.08) 30px, rgba(240,220,180,.03) 90px, var(--veil) 210px);
+  opacity:0;transition:opacity .35s;
+}
+#strata.archaeology #veil{opacity:1}
+.layer{
+  position:relative;height:50px;margin:4px auto;width:min(860px,100%);
+  border-radius:5px;border:1px solid rgba(30,16,4,.6);
+  box-shadow:
+    inset 0 2px 0 rgba(255,232,185,.30),
+    inset 0 -3px 0 rgba(30,14,3,.55),
+    inset 0 0 26px rgba(60,30,5,.16),
+    0 2px 0 rgba(0,0,0,.55);
+  cursor:pointer;overflow:hidden;display:flex;align-items:center;gap:12px;
+  padding:7px 14px;   /* 上下内边距：强化岩层物理厚度感 */
+  transition:filter .25s ease, transform 1.6s cubic-bezier(.45,.05,.3,1), opacity .8s ease, background .35s ease;
+}
+.layer:hover{filter:brightness(1.22)}
+.layer .h{font-size:11px;color:rgba(30,18,6,.85);font-weight:700;letter-spacing:1px;flex:0 0 auto}
+.layer .nm{font-size:13px;color:rgba(30,16,6,1);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer .sig{font-size:11px;color:rgba(35,18,6,.8);margin-left:auto;flex:0 0 auto}
+.layer.epoch0{
+  background:
+    linear-gradient(180deg, rgba(255,238,200,.34), transparent 15%, transparent 82%, rgba(22,9,0,.5)),
+    repeating-linear-gradient(180deg, rgba(0,0,0,.10) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg,#d09a4c,#b5752f 48%,#8a5a26);
+}
+.layer.epoch1{
+  background:
+    linear-gradient(180deg, rgba(255,242,210,.34), transparent 15%, transparent 82%, rgba(22,9,0,.5)),
+    repeating-linear-gradient(180deg, rgba(0,0,0,.10) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg,#e6b064,#c08332 48%,#9a6626);
+}
+.layer.new{
+  background:
+    linear-gradient(180deg, rgba(255,246,215,.40), transparent 15%, transparent 82%, rgba(26,11,0,.5)),
+    repeating-linear-gradient(180deg, rgba(0,0,0,.10) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg,#efc07e,#cf8f38 48%,#a97228);
+  animation:glow 1.4s ease 2;
+}
+/* 岩石断面噪点纹理（内联 SVG feTurbulence，无外部资源） */
+.layer::before{
+  content:"";position:absolute;inset:0;pointer-events:none;border-radius:5px;opacity:.16;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:160px 160px;
+  mix-blend-mode:overlay;
+}
+/* 上下边缘明暗渐变：模拟岩层层理 */
+.layer::after{
+  content:"";position:absolute;inset:0;pointer-events:none;border-radius:5px;
+  background:linear-gradient(180deg, rgba(255,240,205,.22), transparent 18%, transparent 82%, rgba(15,6,0,.4));
+}
+@keyframes glow{0%{box-shadow:0 0 0 0 rgba(233,193,126,.8)}70%{box-shadow:0 0 22px 6px rgba(233,193,126,.35)}100%{box-shadow:none}}
+.layer{animation:settle .5s ease backwards}
+@keyframes settle{from{transform:translateY(-10px);opacity:0}to{transform:none;opacity:1}}
+.layer.depositing{height:0;animation:condense .9s ease forwards}
+@keyframes condense{from{height:0;opacity:0}to{height:50px;opacity:1}}
+.layer.shatter{animation:break .75s ease forwards;pointer-events:none}
+@keyframes break{
+  0%{transform:none;opacity:1;filter:none}
+  25%{transform:translate(2px,-2px) rotate(1.2deg)}
+  50%{transform:translate(-3px,2px) rotate(-1.6deg);opacity:.85}
+  100%{transform:translate(0,26px) scale(.85);opacity:0;filter:brightness(2)}
+}
+.layer.archived{
+  /* 归档古岩层：暗褐色色调 + 整体向下沉入地下 */
+  filter:saturate(.35) brightness(.72);opacity:.55;
+  transform:translateY(30px);
+  z-index:0;
+  background:
+    linear-gradient(180deg, rgba(255,235,190,.10), transparent 20%, transparent 80%, rgba(8,4,0,.6)),
+    repeating-linear-gradient(180deg, rgba(0,0,0,.16) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg,#5a422b,#3e2c1a 50%,#241708);
+}
+.layer:not(.archived){z-index:1}
+.layer.archived .h,.layer.archived .nm,.layer.archived .sig{color:rgba(240,215,170,.7)}
+.epoch-band{position:relative;margin:18px auto 6px;width:min(860px,100%);transition:transform 1.6s cubic-bezier(.45,.05,.3,1)}
+.epoch-band.archived{transform:translateY(10px)}
+.epoch-band .tag{
+  display:inline-flex;align-items:center;gap:8px;font-size:11px;letter-spacing:2px;
+  color:var(--muted);background:#171310;border:1px solid var(--line);border-radius:20px;
+  padding:4px 14px;
+}
+.epoch-band .tag b{color:var(--amber)}
+.epoch-band.archived .tag{color:var(--faint)}
+.epoch-band.archived .tag b{color:var(--faint)}
+.epoch-band.archived .tag .drill{color:#c8a268;cursor:pointer;border-bottom:1px dotted #c8a268;margin-left:6px}
+.genesis{
+  position:relative;margin:26px auto 0;width:min(860px,100%);min-height:172px;
+  border-radius:8px;padding:22px 24px;cursor:pointer;overflow:hidden;
+  border:1px solid rgba(42,37,31,.85);
+  background:
+    radial-gradient(4px 4px at 10% 26%, rgba(48,42,34,.75) 40%, transparent 42%),
+    radial-gradient(3px 3px at 22% 70%, rgba(255,255,255,.22) 40%, transparent 42%),
+    radial-gradient(4px 4px at 38% 40%, rgba(48,42,34,.7) 40%, transparent 42%),
+    radial-gradient(2px 2px at 52% 64%, rgba(255,255,255,.26) 40%, transparent 42%),
+    radial-gradient(4px 4px at 66% 28%, rgba(48,42,34,.65) 40%, transparent 42%),
+    radial-gradient(3px 3px at 80% 62%, rgba(255,255,255,.20) 40%, transparent 42%),
+    radial-gradient(4px 4px at 92% 36%, rgba(48,42,34,.7) 40%, transparent 42%),
+    repeating-linear-gradient(90deg, rgba(60,54,46,.08) 0 3px, transparent 3px 11px),
+    linear-gradient(180deg,#b8afa1,#8f8678 52%,#6a6256);
+  box-shadow:
+    inset 0 3px 8px rgba(255,255,255,.4),
+    inset 0 -10px 22px rgba(28,24,18,.8),
+    inset 0 0 60px rgba(70,62,52,.25),
+    0 3px 0 rgba(0,0,0,.7);
+}
+.genesis h3{margin:0 0 8px;color:#221d15;font-size:15px;letter-spacing:2px}
+.genesis p{margin:0;color:#332c22;font-size:12px;line-height:1.7;max-width:640px}
+.genesis .rules{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.genesis .rules span{
+  font-size:10px;color:#423a2f;background:rgba(32,27,20,.14);border:1px solid rgba(32,27,20,.3);
+  padding:2px 8px;border-radius:10px;letter-spacing:1px;
+}
+.dot{
+  position:absolute;top:-30px;border-radius:50%;background:#e9c17e;
+  box-shadow:0 0 4px rgba(233,193,126,.7);pointer-events:none;z-index:30;
+  animation:fall var(--d,1.2s) cubic-bezier(.4,0,.7,1) forwards;
+}
+@keyframes fall{
+  0%{transform:translateY(0);opacity:0}
+  12%{opacity:.95}
+  100%{transform:translateY(var(--ty,300px));opacity:0}
+}
+.debris{
+  position:absolute;border-radius:2px;pointer-events:none;z-index:35;
+  background:linear-gradient(180deg,#d99a45,#8a5a26);
+  animation:fly var(--d,.8s) ease-out forwards;
+}
+@keyframes fly{
+  from{transform:translate(0,0) rotate(0);opacity:1}
+  to{transform:translate(var(--dx),var(--dy)) rotate(var(--rot,120deg));opacity:0}
+}
+#detail{
+  flex:0 0 340px;border-left:1px solid var(--line);background:#100d09;
+  overflow-y:auto;padding:20px;transition:transform .3s;
+}
+#detail.closed{transform:translateX(105%)}
+#detail h2{margin:0 0 4px;font-size:16px;color:#f0e4cf;letter-spacing:1px}
+#detail .sub{font-size:12px;color:var(--faint);margin-bottom:16px}
+#detail .field{margin-bottom:12px}
+#detail .field .k{font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:3px}
+#detail .field .v{font-size:13px;line-height:1.6;color:var(--ink)}
+#detail .field pre{
+  background:#16120c;border:1px solid var(--line);border-radius:5px;padding:10px;
+  font-size:12px;color:#e8cf9f;white-space:pre-wrap;word-break:break-all;margin:0;
+  font-family:Consolas,Menlo,monospace;
+}
+#detail .tests{margin:0;padding-left:18px;font-size:12px;color:var(--muted)}
+#detail .tests li{margin:3px 0}
+#detail .tests code{color:#dcc08e}
+#detail button{
+  margin-top:14px;width:100%;padding:9px;border-radius:6px;cursor:pointer;font-size:13px;
+  background:linear-gradient(180deg,#d99a45,#a96824);border:none;color:#1a1108;font-weight:600;
+}
+#detail button.ghost{background:#1a160f;color:var(--muted);border:1px solid var(--line)}
+#close-detail{position:sticky;top:0;float:right;background:none;border:none;color:var(--faint);font-size:18px;cursor:pointer}
+#gallery{
+  position:fixed;left:0;top:0;bottom:0;width:300px;z-index:60;transform:translateX(-100%);
+  transition:transform .32s;background:#0f0c09;border-right:1px solid var(--line);
+  padding:22px;overflow-y:auto;
+}
+#gallery.open{transform:none}
+#gallery h2{margin:0 0 4px;font-size:15px;letter-spacing:2px;color:#f0e4cf}
+#gallery .sub{font-size:11px;color:var(--faint);margin-bottom:18px}
+.work{
+  background:#16120c;border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:12px;cursor:pointer;
+}
+.work:hover{border-color:var(--amber2)}
+.work .t{font-size:13px;color:var(--amber);margin-bottom:4px}
+.work .a{font-size:11px;color:var(--faint);margin-bottom:6px}
+.work .d{font-size:12px;color:var(--muted);line-height:1.5}
+.work .open{display:inline-block;margin-top:8px;font-size:11px;color:#dcc08e;border-bottom:1px dotted #dcc08e}
+#modal{
+  position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;
+  background:rgba(5,4,3,.72);
+}
+#modal.open{display:flex}
+.sandbox{
+  width:min(680px,92vw);max-height:84vh;overflow:auto;background:#14100b;border:1px solid var(--amber2);
+  border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.6);padding:20px;
+  animation:rise .3s ease;
+}
+@keyframes rise{from{transform:translateY(26px);opacity:0}to{transform:none;opacity:1}}
+.sandbox .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.sandbox .head h3{margin:0;font-size:15px;letter-spacing:2px;color:#f0e4cf}
+.sandbox .head span{font-size:11px;color:var(--faint)}
+.sandbox textarea{
+  width:100%;height:130px;background:#0d0a07;color:#e8cf9f;border:1px solid var(--line);
+  border-radius:6px;padding:10px;font-family:Consolas,Menlo,monospace;font-size:13px;resize:vertical;outline:none;
+}
+.sandbox .runrow{display:flex;gap:10px;margin:10px 0;align-items:center;flex-wrap:wrap}
+.sandbox .run{
+  background:linear-gradient(180deg,#d99a45,#a96824);border:none;color:#1a1108;font-weight:600;
+  padding:8px 20px;border-radius:6px;cursor:pointer;
+}
+.sandbox .hint{font-size:11px;color:var(--faint)}
+#sb-output{
+  background:#0d0a07;border:1px solid var(--line);border-radius:6px;padding:10px;min-height:96px;
+  font-family:Consolas,Menlo,monospace;font-size:13px;white-space:pre-wrap;color:#cfe0b4;
+}
+#sb-output .err{color:#d89a86}
+#sb-output .meta{color:var(--faint);font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>StratumGenesis · 地层创世实验</h1>
+    <p>本地前后端原型 · 127.0.0.1:28417 · 真实 Python 业务逻辑</p>
+  </div>
+  <form id="proposal-form" autocomplete="off">
+    <input id="proposal-input" placeholder="为这门语言增加一个特性……（如：函数增量扩展 / 绑定聚合）" maxlength="120">
+    <button id="deduce-btn" type="submit">推演</button>
+  </form>
+  <div id="status">
+    <div id="status-main">正在连接本地地层……</div>
+    <div id="status-sub"></div>
+  </div>
+  <div class="toolbar">
+    <button class="iconbtn" id="gallery-btn">程序画廊</button>
+    <button class="iconbtn" id="drill-exit" style="display:none">退出钻探</button>
+  </div>
+</header>
+<main>
+  <div id="strata"></div>
+  <div id="veil"></div>
+  <aside id="detail" class="closed">
+    <button id="close-detail">✕</button>
+    <div id="detail-body"></div>
+  </aside>
+</main>
+<aside id="gallery">
+  <h2>程序画廊</h2>
+  <div class="sub">化石层中保存的历史作品 · 点击打开沙箱（真实后端执行）</div>
+  <div id="gallery-list"></div>
+</aside>
+<div id="modal"><div class="sandbox">
+  <div class="head"><h3>NovScript 沙箱</h3><span>真实解释器 · 教学级纯计算隔离</span></div>
+  <textarea id="sb-code" spellcheck="false"></textarea>
+  <div class="runrow">
+    <button class="run" id="sb-run">运行</button>
+    <span class="hint">POST /eval-novscript · 创世内核仅支持整数、bind、lambda 与 + 加法</span>
+  </div>
+  <div id="sb-output"></div>
+</div></div>
+<script>
+"use strict";
+/* ============================================================
+   前端只做展示与动画；全部业务数据来自本地后端 server.py。
+   ============================================================ */
+const strata = document.getElementById("strata");
+const veil = document.getElementById("veil");
+const detail = document.getElementById("detail");
+const detailBody = document.getElementById("detail-body");
+const gallery = document.getElementById("gallery");
+const modal = document.getElementById("modal");
+const sbCode = document.getElementById("sb-code");
+const sbOutput = document.getElementById("sb-output");
+const drillExit = document.getElementById("drill-exit");
+
+let chainState = null;
+let minerCursor = 0;
+
+function setStatus(main, sub, cls){
+  const el = document.getElementById("status-main");
+  el.textContent = main;
+  el.className = cls || "";
+  if(sub !== undefined) document.getElementById("status-sub").textContent = sub;
+}
+
+async function api(path, body){
+  const options = {method: body === undefined ? "GET" : "POST", headers: {"Content-Type":"application/json"}};
+  if(body !== undefined) options.body = JSON.stringify(body);
+  const resp = await fetch(path, options);
+  if(!resp.ok) throw new Error("HTTP " + resp.status);
+  return resp.json();
+}
+
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+/* ============================================================
+   渲染地层剖面（数据来自 GET /chain-state）
+   ============================================================ */
+async function loadChain(){
+  chainState = await api("/chain-state");
+  renderStrata(chainState);
+  setStatus("地层已同步 · 第 " + (chainState.epochs.length ? chainState.epochs[chainState.epochs.length-1].epoch_number : 0) + " 纪元活跃",
+            "休眠分支 " + chainState.sleeping_branches.length + " · 预沉积高度 " + chainState.chain_height, "");
+}
+
+function renderStrata(state){
+  strata.innerHTML = "";
+  const archivedEpochs = new Set(state.epochs.filter(e=>e.archived).map(e=>e.epoch_number));
+  const byEpoch = {};
+  state.blocks.forEach(b=>{ (byEpoch[b.epoch] = byEpoch[b.epoch] || []).push(b); });
+  const epochNums = Object.keys(byEpoch).map(Number).sort((a,b)=>b-a);
+  epochNums.forEach(en=>{
+    strata.appendChild(epochTagEl(en, archivedEpochs.has(en), state));
+    byEpoch[en].slice().reverse().forEach(b=>{
+      const el = layerEl(b);
+      el.dataset.willArchive = archivedEpochs.has(en) ? "1" : "";
+      strata.appendChild(el);
+    });
+  });
+  const genesis = state.blocks.find(b=>b.height===0);
+  if(genesis) strata.appendChild(genesisEl(genesis));
+  /* 已归档纪元：先亮着，随后缓缓下沉变暗（抬升动画） */
+  setTimeout(()=>{
+    document.querySelectorAll('#strata [data-will-archive="1"]').forEach(el=>el.classList.add("archived"));
+  }, 900);
+}
+
+function epochTagEl(epoch, archived, state){
+  const band = document.createElement("div");
+  band.className = "epoch-band" + (archived ? " archived" : "");
+  band.id = "epoch-band-" + epoch;
+  const snap = state.epochs.find(e=>e.epoch_number===epoch);
+  const range = snap ? (snap.start_height+"–"+snap.end_height) : "—";
+  const tag = document.createElement("span");
+  tag.className = "tag";
+  if(archived){
+    tag.innerHTML = "<b>第 "+epoch+" 纪元</b> · "+range+" · 已归档 · <span class=\"drill\" data-drill>钻探考古</span>";
+    tag.querySelector("[data-drill]").addEventListener("click", (e)=>{ e.stopPropagation(); enterArchaeology(); });
+  }else{
+    tag.innerHTML = "<b>第 "+epoch+" 纪元</b> · "+range+" · 活跃地表";
+  }
+  band.appendChild(tag);
+  return band;
+}
+
+function layerEl(b){
+  const el = document.createElement("div");
+  el.className = "layer epoch" + b.epoch;
+  el.dataset.height = b.height;
+  el.innerHTML = '<span class="h">H'+b.height+'</span><span class="nm"></span><span class="sig">'+esc(b.miner_label)+'</span>';
+  el.querySelector(".nm").textContent = b.feature_name;
+  el.title = "H" + b.height + " · " + b.feature_name + " · 点击查看详情";
+  el.addEventListener("click", ()=>openDetail(b, el));
+  return el;
+}
+
+function genesisEl(genesis){
+  const g = document.createElement("div");
+  g.className = "genesis";
+  g.innerHTML = '<h3>创世内核 · NovScript</h3><p>'+esc(genesis.description)+'</p><div class="rules">'+
+    ["表达式优先","惰性求值","bind 不可变绑定","整数与函数为一等值","S 表达式语法"]
+      .map(r=>'<span>'+r+'</span>').join('')+'</div>';
+  g.title = "创世内核 · 永恒不变 · 点击查看详情";
+  g.addEventListener("click", ()=>openDetail(genesis, g));
+  return g;
+}
+
+/* ============================================================
+   推演：POST /propose → 凝聚 / 碎裂
+   ============================================================ */
+const input = document.getElementById("proposal-input");
+const form = document.getElementById("proposal-form");
+const deduceBtn = document.getElementById("deduce-btn");
+
+form.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const text = input.value.trim();
+  if(!text) return;
+  await deduce(text);
+});
+
+function pickMiner(){
+  if(!chainState || !chainState.miners.length) return null;
+  const miner = chainState.miners[minerCursor % chainState.miners.length];
+  minerCursor += 1;
+  return miner;
+}
+
+async function deduce(text){
+  deduceBtn.disabled = true;
+  setStatus("推演中……正在构造候选区块并签名", "标准词元计数：…", "");
+  /* 模拟词元计数动画（仅视觉，真实计数在服务端完成） */
+  const target = 380 + Math.floor(Math.random()*120);
+  let cur = 0;
+  const ticker = setInterval(()=>{
+    cur = Math.min(target, cur + 25 + Math.floor(Math.random()*35));
+    document.getElementById("status-sub").textContent = "标准词元计数：" + cur;
+    if(cur >= target) clearInterval(ticker);
+  }, 110);
+
+  const miner = pickMiner();
+  if(!miner){
+    setStatus("服务未就绪：缺少矿工身份", "", "bad");
+    deduceBtn.disabled = false;
+    return;
+  }
+  spawnParticles();
+  let resp;
+  try{
+    resp = await api("/propose", {proposal_text: text, miner_pubkey_b64: miner.miner_pubkey_b64});
+  }catch(err){
+    clearInterval(ticker);
+    setStatus("无法连接本地服务，请先运行 python server.py", String(err), "bad");
+    deduceBtn.disabled = false;
+    return;
+  }
+  clearInterval(ticker);
+  if(resp.success){
+    await loadChain();
+    const tip = chainState.blocks.find(b=>b.height===resp.chain_height);
+    if(tip){
+      const el = document.querySelector('#strata .layer[data-height="'+tip.height+'"]');
+      if(el) el.classList.add("new");
+    }
+    setStatus("校验通过 · 沉积完成 · 已写入主链", "高度 H" + resp.chain_height, "ok");
+    if(tip) openSandbox(tip.demo_code, tip.feature_name);
+    input.value = "";
+  }else{
+    shatterLayer(resp.reason || "校验未通过");
+    setStatus("未写入地层 · " + (resp.reason || "校验未通过"), "休眠分支 " + chainState.sleeping_branches.length, "bad");
+    input.value = "";
+  }
+  deduceBtn.disabled = false;
+}
+
+function spawnParticles(){
+  for(let i=0;i<40;i++){
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.left = (8 + Math.random()*84) + "%";
+    dot.style.width = dot.style.height = (2 + Math.random()*3) + "px";
+    dot.style.setProperty("--ty", (60 + Math.random()*90) + "px");
+    dot.style.setProperty("--d", (0.9 + Math.random()*0.9) + "s");
+    strata.appendChild(dot);
+    setTimeout(()=>dot.remove(), 2200);
+  }
+}
+
+function shatterLayer(reason){
+  const el = document.createElement("div");
+  el.className = "layer epoch1";
+  el.style.cssText = "width:min(860px,100%);height:32px;margin:3px auto;";
+  el.innerHTML = '<span class="h">H?</span><span class="nm" style="color:#5a4630">不合规提案 · 岩层碎裂消散</span>';
+  strata.insertBefore(el, strata.firstChild);
+  setTimeout(()=>{
+    el.classList.add("shatter");
+    const r = el.getBoundingClientRect();
+    for(let i=0;i<12;i++){
+      const d = document.createElement("span");
+      d.className = "debris";
+      d.style.left = (r.left + r.width*Math.random()) + "px";
+      d.style.top = (r.top + r.height*Math.random()) + "px";
+      d.style.width = d.style.height = (3 + Math.random()*5) + "px";
+      d.style.setProperty("--dx", (Math.random()*120-60)+"px");
+      d.style.setProperty("--dy", (40+Math.random()*120)+"px");
+      d.style.setProperty("--rot", (Math.random()*260)+"deg");
+      d.style.setProperty("--d", (0.5+Math.random()*0.5)+"s");
+      document.body.appendChild(d);
+      setTimeout(()=>d.remove(), 1200);
+    }
+    setTimeout(()=>el.remove(), 800);
+  }, 900);
+}
+
+/* ============================================================
+   岩层详情面板
+   ============================================================ */
+document.getElementById("close-detail").addEventListener("click", ()=>detail.classList.add("closed"));
+
+function openDetail(b, el){
+  const archived = el.classList.contains("archived") || (b.epoch===0 && b.height!==0);
+  const tests = (b.test_cases||[]).map(t=>'<li><code>'+esc(t.program)+'</code> → '+esc(String(t.expected))+'</li>').join("");
+  detailBody.innerHTML =
+    '<h2>'+esc(b.feature_name)+'</h2>'+
+    '<div class="sub">'+(b.height===0?"永恒基岩":"地层样本")+'</div>'+
+    '<div class="field"><div class="k">高度</div><div class="v">H'+b.height+' · 第 '+b.epoch+' 纪元</div></div>'+
+    '<div class="field"><div class="k">矿工署名</div><div class="v">'+esc(b.miner_label)+'</div></div>'+
+    '<div class="field"><div class="k">特性描述</div><div class="v">'+esc(b.description)+'</div></div>'+
+    (b.height===0 ? '<div class="field"><div class="k">创世内核规则</div><div class="v">表达式优先 · 惰性求值 · bind 不可变绑定 · 整数与函数为一等值 · S 表达式语法</div></div>' : "")+
+    '<div class="field"><div class="k">演示代码</div><pre>'+esc(b.demo_code||"")+'</pre></div>'+
+    (tests ? '<div class="field"><div class="k">测试用例</div><ul class="tests">'+tests+'</ul></div>' : "")+
+    '<button id="detail-run">打开沙箱运行</button>'+
+    (archived ? '<button class="ghost" id="detail-drill">钻探考古</button>' : "");
+  document.getElementById("detail-run").addEventListener("click", ()=>openSandbox(b.demo_code||"(+ 1 2)", b.feature_name));
+  const drill = document.getElementById("detail-drill");
+  if(drill) drill.addEventListener("click", ()=>{ detail.classList.add("closed"); enterArchaeology(); });
+  detail.classList.remove("closed");
+}
+
+/* ============================================================
+   钻探考古（手电筒照亮旧地层）
+   ============================================================ */
+function enterArchaeology(){
+  strata.classList.add("archaeology");
+  drillExit.style.display = "inline-block";
+  setStatus("钻探模式 · 手电筒照亮地下古岩层", "考古视图", "");
+  strata.scrollTo({top: strata.scrollHeight, behavior:"smooth"});
+}
+drillExit.addEventListener("click", ()=>{
+  strata.classList.remove("archaeology");
+  drillExit.style.display = "none";
+});
+strata.addEventListener("mousemove", (e)=>{
+  const r = strata.getBoundingClientRect();
+  veil.style.setProperty("--mx", (e.clientX - r.left)+"px");
+  veil.style.setProperty("--my", (e.clientY - r.top)+"px");
+});
+
+/* ============================================================
+   程序画廊（作品为静态展示，代码由真实后端执行）
+   ============================================================ */
+const GALLERY = [
+  {title:"《地层回声》", author:"沉积者·阿砚", desc:"一段绑定与求和的回声。", code:"(bind seq (+ 1 2))\nseq"},
+  {title:"《增量勘探》", author:"地层匠·沧石", desc:"用函数原语向 41 之上推进一步。", code:"(bind inc (lambda (x) (+ x 1)))\n(inc 41)"},
+  {title:"《创世祭文》", author:"古生物志·竺青", desc:"写给创世内核的加法祭文。", code:";; 献给 NovScript 创世内核\n(+ 20 22)"},
+  {title:"《断层测绘》", author:"矿脉测绘·栖岩", desc:"同一数值的两次叠加，测绘自对称地层。", code:"((lambda (x) (+ x x)) 21)"},
+];
+document.getElementById("gallery-btn").addEventListener("click", ()=>gallery.classList.toggle("open"));
+GALLERY.forEach(w=>{
+  const card = document.createElement("div");
+  card.className = "work";
+  card.innerHTML = '<div class="t">'+w.title+'</div><div class="a">'+w.author+'</div><div class="d">'+w.desc+'</div><span class="open">打开沙箱</span>';
+  card.addEventListener("click", ()=>openSandbox(w.code, w.title));
+  document.getElementById("gallery-list").appendChild(card);
+});
+
+/* ============================================================
+   沙箱弹窗：POST /eval-novscript 调用真实解释器
+   ============================================================ */
+function openSandbox(code, title){
+  sbCode.value = code || "";
+  sbOutput.innerHTML = "";
+  modal.classList.add("open");
+  document.querySelector(".sandbox .head span").textContent = title || "沙箱";
+}
+modal.addEventListener("click", (e)=>{ if(e.target===modal) modal.classList.remove("open"); });
+
+document.getElementById("sb-run").addEventListener("click", async ()=>{
+  sbOutput.innerHTML = "";
+  const code = sbCode.value;
+  const line = (html, cls)=>{ const d=document.createElement("div"); if(cls) d.className=cls; d.innerHTML=html; sbOutput.appendChild(d); };
+  try{
+    const resp = await api("/eval-novscript", {code: code});
+    if(resp.ok){
+      line("→ " + esc(JSON.stringify(resp.value)), "");
+      line("模拟执行步数 " + resp.steps + " · 真实沙箱返回", "meta");
+    }else{
+      line("错误：" + esc(resp.error_type || "未知错误") + " · " + esc(resp.error_message || ""), "err");
+    }
+  }catch(err){
+    line("无法连接本地服务：" + esc(String(err)), "err");
+  }
+});
+
+/* ============================================================
+   启动：拉取真实链状态并渲染
+   ============================================================ */
+loadChain().catch(err=>{
+  setStatus("无法连接本地服务，请先运行 python server.py", String(err), "bad");
+});
+</script>
+</body>
+</html>

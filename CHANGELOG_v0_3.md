@@ -225,6 +225,96 @@
   提交使用 `-` 的普通提案被 `UNIMPORTED_FEATURE` 拒绝 → 带 `activation=["-"]`
   的引种提案通过；`/chain-state` 新字段齐全、旧字段语义符合文档。
 
+## v0.3 · 阶段 E（分叉兑现：休眠分支升级 / 主链重组 reorg）
+
+> 背景：落选候选原先只存进 `sleeping_branches` 后永久沉睡，「分叉 = 语言分化」（白皮书 §9）
+> 只是名词。本阶段让休眠分支**可升级为主链**，并保证语言/账本/纪元状态随之正确改写。
+> 设计说明：`BRANCH_PROMOTION_DESIGN.md`；实现说明：`BRANCH_PROMOTION_IMPLEMENTATION.md`。
+
+### 机制
+
+- `chain_store.py`：新增 `inspect_promotion` / `branch_head_candidates` / `promote_branch`
+  （S1 链回溯 → S2 结构资格 E1–E6 → S3 在**全新 scratch ChainStore** 上重放「保留前缀 →
+  分支链逐块完整校验（E7）→ 休眠迁移（其余休眠 + 旧后缀按高度升序入休眠）」→
+  S4 **单临界区原子换入**七个内部引用）；失败路径只丢弃 scratch，live 状态零变化（I-11）。
+- `block_validator.py`：新增纯函数 `check_promotion_eligibility`（E1–E6，只读）；
+  E7 由 scratch 上的既有 9 检查流水线承担，错误码（UTXO_INVALID / UNIMPORTED_FEATURE 等）原样透传。
+- **冻结约束**：只在**当前未归档纪元内**重组（不触碰已归档区块与 finalized 摘要）；
+  被替换的旧主链后缀**移入休眠分支、不丢失**；派生状态（账本/纪元快照/语言注册表/逐高度快照）
+  **一律由新主链重放重建**，不做反向补丁。
+- **`ever_active` 语义精确化**：在 append 序列上单调不减；**重组是重推导事件，允许收缩**
+  （与「存档 = 主链函数」的纯重放哲学一致；未引入高水位线，`FORMAT_VERSION` 保持 `chain-v2`）。
+- `server.py`：新增 `GET /branches` 与 `POST /promote-branch`（按 `head_block_hash` 定位分支）；
+  新增仅保护变更类入口（`/propose`、`/promote-branch`）的状态锁；既有三个 API 只追加字段。
+
+### 测试
+
+- 新增 `tests/test_branch_promotion.py` 18 项：纯接续（高度 103 平票双分支）、后缀替换、
+  深/收缩/延伸重组、四类资格拒绝、UTXO 与语言失效语义拒绝、`ever_active` 收缩后重激活、
+  跨纪元摘要冻结与 pending 重算、**对合性**（提升分支再提升旧后缀可复原）、持久化 round-trip
+  逐项等价、原子性总检与 API 契约超集兼容。
+
+### 验证结果
+
+- 全量回归：`python -m unittest discover -s tests` → **276 项全部通过，失败 0**；
+  `python -m compileall -q .` 退出码 0。
+- 监督者独立实测（不经 HTTP、直接调库）：造平票双分支 → promote 后 tip 变为分支块、
+  旧块降级入休眠、**区块数与铸币量守恒**；再提升旧后缀**完全复原（对合）**；
+  提升主链块 → `PROMOTION_NOT_FOUND`；伪造跨归档纪元的休眠块 →
+  `PROMOTION_ARCHIVED_EPOCH` 且状态逐项不变。
+
+## v0.3 · 上线批次（许可 / 门面 / 部署 / 静态展馆 / 分析器）
+
+### 许可与合规（新增）
+
+- `LICENSE`（**PolyForm Noncommercial 1.0.0**，明文禁止商业使用）、
+  `LICENSE-SCOPE.md`（中文边界：允许个人/教学/研究/免费公开 hub；禁止收费、订阅、广告变现、
+  商业 SaaS；部署者义务与免责重申）、`NOTICE`（署名、依赖声明仅 `ecdsa`(MIT)、非加密货币声明）。
+- ⚠️ **发布硬门槛**：`AUTHOR_NAME` / `COMMERCIAL_LICENSE_CONTACT` / 仓库 URL 三处占位符
+  **必须由作者本人填写**；未填不得对外发布（Pages / 公开 hub）。
+
+### 仓库门面与依赖（新增/修改）
+
+- `README.md`（新）：一句话定位、30 秒原理、三种上手路径、「它不是什么」（无代币/无金融价值/
+  PoI 为 mock/非生产）、测试命令、许可声明。
+- `start.bat`（新，Windows 一键启动）：纯 ASCII + CRLF（避免 CP936 下注释被当命令执行导致块截断）、
+  解释器探测（排除 AppInstaller 的 `python.exe` 符号链接）、缺 `ecdsa` 时提示安装、自动打开页面。
+- `requirements.txt`（新）：`ecdsa>=0.19`（项目唯一第三方依赖）。
+- `.gitignore`：追加 `.codebuddy/`、`.workbuddy/`（本地 AI 工具目录）与 `*.bak-*`。
+
+### 部署与静态展馆
+
+- `export_public.py`（新）：导出可公开的 `chain_state.json`；**写盘前断言结果不含 `private_key`**，
+  否则拒绝写出并非零退出（存档含明文私钥，公开发布必须剥离）。
+- `index.html`：新增**运行模式探测** —— 后端不可用时自动降级读取同目录 `chain_state.json`，
+  进入「只读展馆」（禁用提案入口并给出中文说明）；正常后端模式行为不变。
+- `chain_state.json`（已入库）：只读展馆的静态链快照（**已验证零私钥**）；发布前用最新代码刷新。
+- `Dockerfile` / `DEPLOY.md` / `render.yaml`（新）：一键部署路径与「部署者须知」
+  （服务端持私钥 = 公网可冒充、垃圾提案防护、免费层冷启动、合规义务、Actions 定时归档）。
+
+### 离线链分析器与跨 AI 创造力指标
+
+- `analyze_chain.py`（新）+ `EXPERIMENT_METRICS.md`：把 chain-v2 存档转成可复现的实验指标报告。
+  签名重验统一走 `crypto_key.verify_block_signature`；**已移除早期内嵌的手写 ECDSA 回退**
+  （未通过独立交叉校验的实现不得作为承重组件）；缺 `ecdsa` 时明确跳过并在 JSON 标注
+  `skipped_no_ecdsa`，**不伪造结果**；Windows GBK 控制台经 UTF-8 容错 + 字符替换后不再崩溃。
+- **跨 AI 创造力指标（`--by-model`）**：按 `blocks[].poi.model_metadata` 分组统计 —— 接受率、
+  **引种留存率**（首激活特性在更晚纪元被引种的次数）、半衰期（首激活纪元 → 最后被引种纪元的
+  跨度中位数）、原语偏好、组合新颖度、矿工/模型的多挂关系；样本量不足时置
+  `sample_size_warning`（**n/a 是设计内合法状态，禁止为使报告好看而放宽既有断言**）。
+- 测试：`tests/test_analyze_chain.py` 58 项（缺 ecdsa 走 `skipUnless` 降级、GBK 专项、
+  哨兵值零泄漏、`epoch = height // 100` 口径断言）；`tests/test_builtin_pool_matrix.py` 80 项
+  （15 个可激活扩展原语的正常/元数/类型/边界矩阵，只断言 `error_type` 不锁错误文案）。
+- `SURVIVAL_AND_DEPLOYMENT.md`：存活与部署策略（零服务器路线、多 hub 并存机制、
+  许可取舍与诚实提醒、部署者须知）。
+
+### 未验证项（如实标注）
+
+- `Dockerfile` 未实机构建、`render.yaml` 未上 Render 验证（本机无 Docker / 无平台账号）；
+  PythonAnywhere 免费层经评估不可行（不允许长期运行自定义监听服务）。
+- `chain_state.json` 由随机演示密钥生成，重新导出会产生 diff（发布前刷新即可）。
+- 浏览器内 Pyodide 全功能版（Pages 上零服务器可玩）列为下一批工作，本批次未包含。
+
 ## 尚未实现（沿用 v0.2 清单，本阶段未触碰）
 
 - 真实 LLM 纪元摘要（当前为 mock-rule-v1 规则模板）；大断层事件；

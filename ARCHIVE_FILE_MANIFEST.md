@@ -1,8 +1,9 @@
-# StratumGenesis · v0.2 归档文件清单
+# StratumGenesis · 文件清单（v0.2 归档 + v0.3 追加登记）
 
-> 归档版本：v0.2　归档日期：2026-09-09
-> 本清单完整罗列归档包内全部源码、测试、演示与文档文件，每项附一句话用途说明。
-> 目录结构以归档时的项目根目录 `E:\my-code\tokenmint` 为准。
+> 起始归档版本：v0.2（2026-09-09）；本文档持续追加登记 v0.3 各阶段文件（阶段 A–E 与上线批次）。
+> 本清单罗列全部源码、测试、演示与文档文件，每项附一句话用途说明。
+> 目录结构以项目根目录 `E:\my-code\tokenmint` 为准。
+> 当前测试总数：**298 项全部通过**（监督者独立复跑确认）。
 
 ---
 
@@ -79,7 +80,10 @@
 | `tests/test_sandbox_limits.py` | 4 | v0.3 阶段 C 收尾：输出上限超限 ResourceLimitError / 恰好等于上限成功；长列表不泄露宿主递归 / 宿主递归稳定归类 |
 | `tests/test_persistence_evolution.py` | 1 | v0.3 阶段 C 收尾 F：save→load+rebuild 后高度/哈希、逐高度语言快照、激活能力可用、未激活高度 NameError 全一致 |
 | `tests/test_epoch_scope.py` | 10 | v0.3 阶段 D：跨纪元失忆、引种成功、同纪元重复拒绝、跨纪元再引种、重放一致性、分类正确、语义化报错、API 契约、边界 99/100/101、预沉积回归 |
-| **合计** | **120** | 全部通过 |
+| `tests/test_branch_promotion.py` | 18 | v0.3 阶段 E：纯接续/后缀替换/深·收缩·延伸重组、四类资格拒绝、UTXO 与语言失效拒绝、ever_active 收缩后重激活、跨纪元摘要冻结与 pending 重算、对合性、持久化 round-trip、原子性总检、API 契约超集 |
+| `tests/test_builtin_pool_matrix.py` | 80 | 15 个可激活扩展原语的矩阵测试：正常/元数错误/类型错误/边界（除零、非 proper list、if 惰性）+ 未激活 NameError + 沙箱上限（只断言 `error_type`，不锁错误文案） |
+| `tests/test_analyze_chain.py` | 58 | v0.3 上线批次：离线分析器 CLI/指标/`--by-model` 创造力指标/私钥零泄漏/哨兵值零泄漏/`epoch=height//100` 口径/**缺 ecdsa 的 skipUnless 降级与 GBK 控制台专项** |
+| **合计** | **276** | 全部通过（监督者独立复跑确认） |
 
 ## 五、归档文档（本次新增，均为 Markdown）
 
@@ -113,6 +117,39 @@
 | `tests/test_epoch_scope.py` | 10 项纪元作用域/引种回归（见四节） |
 | `INTRODUCTION_IMPLEMENTATION.md` | 阶段 D 实现说明：两层注册表、作用域校验、错误码表、API 契约变更、已知限制 |
 
+### 1.6 v0.3 阶段 E 分叉兑现追加登记
+
+| 文件 | 用途 |
+|---|---|
+| `chain_store.py`（修改） | 新增 `PromotionResult`/`PromotionError`、`_walk_branch`、`inspect_promotion`、`branch_head_candidates`、`promote_branch`（scratch 重放 + S4 单临界区原子换入） |
+| `block_validator.py`（修改） | 新增纯函数 `check_promotion_eligibility`（资格判定 E1–E6，只读）；E7 复用既有 9 检查流水线 |
+| `server.py`（修改） | 新增 `GET /branches`、`POST /promote-branch`、变更类入口状态锁；既有 API 只追加字段 |
+| `tests/test_branch_promotion.py` | 18 项重组回归（见四节） |
+| `BRANCH_PROMOTION_DESIGN.md` | 阶段 E 设计说明：资格判定式、重组算法与回滚点、12 条不变量、测试计划、开放问题取舍 |
+| `BRANCH_PROMOTION_IMPLEMENTATION.md` | 阶段 E 实现说明：实现映射、原子性、语言/纪元一致性、API 契约、已知限制 |
+
+### 1.7 v0.3 上线批次追加登记（许可 / 门面 / 部署 / 静态展馆 / 分析器）
+
+| 文件 | 用途 |
+|---|---|
+| `LICENSE` | **PolyForm Noncommercial 1.0.0**（禁止商业使用）；含作者署名占位符 |
+| `LICENSE-SCOPE.md` | 中文许可边界：允许项/禁止项/部署者义务/商业授权联络（占位符）/免责重申 |
+| `NOTICE` | 署名与性质声明：依赖仅 `ecdsa`(MIT)、非加密货币、无代币、无金融价值 |
+| `README.md` | 仓库门面：一句话定位、30 秒原理、三种上手路径、「它不是什么」、测试命令、许可声明 |
+| `requirements.txt` | 运行时依赖清单：`ecdsa>=0.19`（项目唯一第三方依赖） |
+| `start.bat` | Windows 一键启动（纯 ASCII + CRLF；解释器探测；缺依赖提示；自动开页面） |
+| `.gitignore` | 忽略 `__pycache__/`、`*.pyc`、`server.log`、`data/`、`*.tmp`、`.codebuddy/`、`.workbuddy/`、`*.bak-*` |
+| `export_public.py` | 导出可公开的只读展馆数据（**写盘前断言无 `private_key`**，否则拒绝写出并非零退出） |
+| `chain_state.json` | 只读展馆静态链快照（已剥离私钥；发布前用最新代码刷新） |
+| `Dockerfile` | 容器镜像：`python:3.12-slim` + `requirements.txt` + 暴露 28417 + 容器内 HEALTHCHECK |
+| `DEPLOY.md` | 部署指南（Render/Fly 逐步）+「部署者须知」（持私钥可冒充、垃圾提案防护、冷启动、合规义务、Actions 归档） |
+| `render.yaml` | Render 一键部署蓝图（含 127.0.0.1 绑定的转发方案与风险标注） |
+| `analyze_chain.py` | 离线链分析器：指标报告 + `--verify` 签名重验（走 `crypto_key`）+ `--by-model` 跨 AI 创造力指标 |
+| `EXPERIMENT_METRICS.md` | 实验指标口径文档（含跨 AI 创造力指标定义、数据来源纪律、样本量警示、未验证项） |
+| `tests/test_analyze_chain.py` | 58 项分析器回归（见四节） |
+| `tests/test_builtin_pool_matrix.py` | 80 项扩展原语矩阵回归（见四节） |
+| `SURVIVAL_AND_DEPLOYMENT.md` | 存活与部署策略：零服务器路线、Pyodide 可玩路径、多 hub 机制、许可取舍、诚实提醒 |
+
 ## 六、历史设计文档（保留供参考）
 
 | 文件 | 用途 |
@@ -133,5 +170,10 @@
 ## 七、说明
 
 - 目录下 `__pycache__/` 为 Python 运行时缓存，不属于归档内容。
-- 本归档不包含任何外部依赖清单之外的第三方库：运行时仅需 `ecdsa`（项目既有依赖）。
-- 全部状态为内存仿真：无磁盘持久化、无 P2P、无公网访问、无鉴权、无任何可交易资产。
+- 依赖：运行时仅需 `ecdsa`（详见 `requirements.txt`，MIT 许可，纯 Python）。缺该依赖时签名/验签相关功能
+  与离线分析器的验签路径会明确跳过并提示（不得伪造结果）。
+- **状态存储**：内存仿真 + 实验级 JSON 存档（如 `data/chain_v2.json`）。⚠️ 存档**含明文矿工私钥**，
+  公开分发或部署前必须剥离（参见 `export_public.py` 的私钥剥离断言）。
+- 仍不提供：P2P 网络、公网鉴权、数据库、HTTPS、密钥托管；**无任何可交易代币或现实金融价值**。
+- `data/` 目录整体被 `.gitignore` 忽略；`data/chain_v1.json` 为 chain-v1 旧格式样本，仅用于验证
+  「旧版本存档被拒」行为，**不得删除或改写**。

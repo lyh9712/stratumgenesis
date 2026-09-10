@@ -498,6 +498,22 @@ main{flex:1;display:flex;overflow:hidden;position:relative}
   filter:brightness(1.18) saturate(.92);position:relative;z-index:2;
 }
 .genesis.shadow-active{outline:2px solid rgba(127,155,181,.85);outline-offset:2px;filter:brightness(1.1)}
+
+/* --- v0.3 线④：静态只读展馆（GitHub Pages 降级）---
+   仅新增元素与类，不修改任何既有 id / class 的样式与行为。 */
+#readonly-banner{
+  flex:0 0 100%;margin:0;padding:7px 12px;border-radius:6px;
+  border:1px solid rgba(217,154,69,.35);background:rgba(217,154,69,.10);
+  color:var(--ink);font-size:12px;line-height:1.7;letter-spacing:.5px;
+}
+#readonly-banner b{color:var(--amber);font-weight:600}
+#readonly-banner code{
+  background:rgba(233,221,201,.10);border:1px solid var(--line);
+  border-radius:4px;padding:1px 5px;font-size:11px;color:#f0e4cf;
+}
+#proposal-input:disabled{opacity:.55;cursor:not-allowed}
+#deduce-btn:disabled,#sb-run:disabled{filter:grayscale(.85);opacity:.6;cursor:not-allowed}
+.rb-hint{color:var(--faint);font-size:12px;line-height:1.7}
 </style>
 </head>
 <body>
@@ -601,17 +617,90 @@ async function api(path, body){
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 /* ============================================================
-   渲染地层剖面（数据来自 GET /chain-state）
+   v0.3 线④：静态只读展馆降级（GitHub Pages / 任意纯静态托管）
+   ------------------------------------------------------------
+   当 /chain-state 不可用（fetch 失败、非 200、或非 JSON）时，自动回退读取
+   同目录 chain_state.json（由 export_public.py 生成，已剥离私钥）。读到即
+   进入只读展馆模式：地层剖面 / 岩层详情 / 纪元摘要 / 休眠分支 / 钻探考古 /
+   程序画廊全部照常浏览，一切需要后端的写操作（推演提案、沙箱执行）被禁用。
+   本块只新增函数与新 id（#readonly-banner），不修改任何既有 id / class，
+   不改变后端可用时的任何既有交互与动画。
+   ============================================================ */
+const READONLY_STATE_FILE = "chain_state.json";
+const READONLY_HINT = "当前为<b>只读展馆</b>（GitHub Pages）：展示的是 export_public.py 导出的链快照，已剥离全部私钥。" +
+  "想亲手提案请在本机运行 <code>python server.py</code>，或使用 Codespaces / 自建 hub。";
+let READ_ONLY = false;
+
+async function fetchStaticState(){
+  const resp = await fetch(READONLY_STATE_FILE, {cache:"no-store"});
+  if(!resp.ok) throw new Error("HTTP " + resp.status);
+  const text = await resp.text();
+  try{
+    return JSON.parse(text);
+  }catch(err){
+    throw new Error("静态链数据不是合法 JSON：" + READONLY_STATE_FILE);
+  }
+}
+
+/* 后端优先，静态兜底；两者都不可用时抛出后端原因，沿用既有错误提示 */
+async function loadStateSource(){
+  let backendErr = null;
+  try{
+    return {state: await api("/chain-state"), readonly:false};
+  }catch(err){
+    backendErr = err;
+  }
+  try{
+    return {state: await fetchStaticState(), readonly:true};
+  }catch(staticErr){
+    throw backendErr;
+  }
+}
+
+function enterReadonlyMode(){
+  if(READ_ONLY) return;
+  READ_ONLY = true;
+  const banner = document.createElement("div");
+  banner.id = "readonly-banner";
+  banner.innerHTML = READONLY_HINT;
+  const header = document.querySelector("header");
+  if(header) header.insertBefore(banner, header.firstChild);
+  /* 提案入口：禁用输入框与推演按钮（保留 DOM 与 id/class，仅置 disabled） */
+  const inputEl = document.getElementById("proposal-input");
+  if(inputEl){
+    inputEl.disabled = true;
+    inputEl.placeholder = "只读展馆模式：提案需要本机后端";
+  }
+  const deduceEl = document.getElementById("deduce-btn");
+  if(deduceEl){ deduceEl.disabled = true; deduceEl.title = "只读展馆模式：提案需要本机后端"; }
+  const sbRunEl = document.getElementById("sb-run");
+  if(sbRunEl){
+    sbRunEl.disabled = true;
+    sbRunEl.title = "只读展馆模式：没有后端解释器";
+    const hintEl = sbRunEl.parentNode.querySelector(".hint");
+    if(hintEl) hintEl.textContent = "只读展馆 · 无后端解释器，代码仅供查看";
+  }
+}
+
+/* ============================================================
+   渲染地层剖面（数据来自 GET /chain-state 或静态快照）
    ============================================================ */
 async function loadChain(){
-  chainState = normalizeState(await api("/chain-state"));
+  const source = await loadStateSource();
+  chainState = normalizeState(source.state);
+  if(source.readonly) enterReadonlyMode();
   renderStrata(chainState);
   renderLangMap(chainState);
   updateLangStatus(chainState);
   renderGallery(chainState);
   renderSleeping(chainState);
-  setStatus("地层已同步 · 第 " + currentEpochEn(chainState) + " 纪元活跃",
-            "休眠分支 " + chainState.sleeping_branches.length + " · 预沉积高度 " + chainState.chain_height, "");
+  if(READ_ONLY){
+    setStatus("只读展馆 · 静态链快照已载入",
+              "休眠分支 " + chainState.sleeping_branches.length + " · 快照高度 " + chainState.chain_height, "");
+  }else{
+    setStatus("地层已同步 · 第 " + currentEpochEn(chainState) + " 纪元活跃",
+              "休眠分支 " + chainState.sleeping_branches.length + " · 预沉积高度 " + chainState.chain_height, "");
+  }
 }
 
 function renderStrata(state){
@@ -727,6 +816,10 @@ function pickMiner(){
 }
 
 async function deduce(text){
+  if(READ_ONLY){
+    setStatus("只读展馆模式：提案需要本机后端", "请运行 python server.py 或部署一个 hub", "bad");
+    return;
+  }
   deduceBtn.disabled = true;
   setStatus("推演中……正在构造候选区块并签名", "标准词元计数：…", "");
   /* 模拟词元计数动画（仅视觉，真实计数在服务端完成） */
@@ -887,6 +980,12 @@ function openSandbox(code, title, autoRun){
   sbOutput.innerHTML = "";
   modal.classList.add("open");
   document.querySelector(".sandbox .head span").textContent = title || "沙箱";
+  /* v0.3 线④：只读展馆模式下没有解释器，打开沙箱仅供查看代码，绝不伪造结果 */
+  if(READ_ONLY){
+    sbOutput.innerHTML = '<div class="rb-hint">只读展馆模式没有后端解释器，此代码仅供查看，不会执行。<br>' +
+      '想亲手运行请在本机执行 <code>python server.py</code> 或部署一个 hub。</div>';
+    return;
+  }
   /* v0.3 并行线 A：画廊中需要真实结果的作品，打开即真实执行（绝不预置结果） */
   if(autoRun) document.getElementById("sb-run").click();
 }
@@ -894,6 +993,10 @@ modal.addEventListener("click", (e)=>{ if(e.target===modal) modal.classList.remo
 
 document.getElementById("sb-run").addEventListener("click", async ()=>{
   sbOutput.innerHTML = "";
+  if(READ_ONLY){
+    sbOutput.innerHTML = '<div class="err">只读展馆模式没有后端解释器，无法运行 NovScript。</div>';
+    return;
+  }
   const code = sbCode.value;
   const line = (html, cls)=>{ const d=document.createElement("div"); if(cls) d.className=cls; d.innerHTML=html; sbOutput.appendChild(d); };
   try{
@@ -1677,6 +1780,7 @@ function showSleepingDetail(b, state){
 
 /* 轻量刷新休眠分支侧栏（不重建地层剖面，保留碎裂动画；失败时调用） */
 async function refreshSleepingOnly(){
+  if(READ_ONLY) return;   /* 线④：只读展馆无后端，无需也不应刷新 */
   try{
     const st = await api("/chain-state");
     if(chainState) chainState.sleeping_branches = st.sleeping_branches || [];

@@ -1,0 +1,42 @@
+services:
+  # ===========================================================================
+  # StratumGenesis v0.3 · Render 一键部署蓝图（线④：部署与分发）
+  #
+  # ⚠️ 本蓝图【未经真机验证】（线④无 Render 账号、不联网）。它解决的是
+  #    server.py 只监听 127.0.0.1 与 Render 要求绑定 0.0.0.0:$PORT 之间的冲突，
+  #    做法是「容器内起一层 socat 端口转发」。若 Render 构建环境不允许 apt-get，
+  #    请改用 DEPLOY.md §2-C 的纯 Python 转发器（标准库实现，无需装包）。
+  #
+  # ⚠️ 部署前必读 DEPLOY.md「部署者须知（安全与合规）」：本服务【无身份鉴权】、
+  #    服务端持有全部矿工私钥（公网可被任何人冒充），建议仅作只读/演示用途。
+  # ===========================================================================
+  - type: web
+    name: stratumgenesis
+    runtime: python
+    plan: free
+    # 免费层无持久化磁盘：链数据随实例销毁而丢失，请配合 §8 的数据归档。
+    branch: main
+
+    buildCommand: |
+      pip install --upgrade pip
+      if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install ecdsa; fi
+      apt-get update && apt-get install -y --no-install-recommends socat
+
+    # socat: 0.0.0.0:$PORT -> 127.0.0.1:28417
+    # exec 保证 python 进程接管 PID 1，能收到 SIGTERM 正常退出。
+    startCommand: |
+      socat TCP4-LISTEN:${PORT:-10000},bind=0.0.0.0,fork,reuseaddr TCP4:127.0.0.1:28417 &
+      exec python server.py
+
+    healthCheckPath: /
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      # 仅作文档标记：server.py 当前不读取环境变量，存档路径由 --archive 参数指定。
+      # 需要自定义路径时请改上面的 startCommand。
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+    # 免费层实例会冷启动/休眠：首次访问可能等待数十秒。
+    # 若需要长期在线，请改用付费实例，或依赖「多 hub + 数据归档」策略（DEPLOY.md §8）。

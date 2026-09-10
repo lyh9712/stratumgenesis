@@ -52,6 +52,13 @@ python analyze_chain.py [--by-model] [--json <输出>]               # 无存档
    注意 `data/chain_v1.json` 是旧格式样本，加载会被**正确拒绝**（版本不匹配），
    不要试图读它、更不要删它。
 
+3. **`model_metadata` 的数据来源（v0.3·卡 1/4 之后）**。跨 AI 创造力指标的分组键
+   `blocks[].poi.model_metadata` 现在由 `POST /propose-structured`（结构化提案通道）
+   真实随区块上链——参与者提交自写的 `demo_code` / `activation` / `model_metadata`，
+   服务端原样转发、不经改写，直接送进既有 9 项校验流水线。此前全项目硬编码 `"manual-mock"`，
+   现在真实链上可以出现任意参与者声明的模型身份。⚠️ **该字段是参与者自报、服务端不校验、
+   链上不存模型指纹**，详见 §4.5 与 `LEADERBOARD.md` 的「诚实提醒」。
+
 2. **内存合成链（`--synthetic`）**。跨 3 个纪元的合成主链，走既有
    `block_model` / `chain_store` / `crypto_key` / `mock_tokenizer` /
    `persistence.serialize_state` 的真实追加路径（含纪元首块重置），因此生成的 JSON
@@ -189,6 +196,14 @@ python analyze_chain.py [--by-model] [--json <输出>]               # 无存档
 报告与 `warnings` 同时标注「仅为估计，需谨慎解读」。当前合成链每模型只有 1~3 个
 首次激活特性，真实预沉积链更是 0 个——任何跨模型排名都只能当演示，不能当结论。
 
+**⚠️ 诚实提醒（自报不可验证，必须写进任何榜单/前端）**：`model_metadata` 是
+**参与者自报**的字符串，服务端**不校验**其真伪、链上**不存任何模型指纹或签名背书**，
+任何人都可以把任意名字填进 `model_metadata`。因此 `--by-model` 与 `metrics.json`
+的 `by_model` 分区**只能证明「按声明分组的差异」**——例如「声明为 model-A 的区块
+比声明为 model-B 的区块被引种更多」，而**不能证明「model-A 这个模型本身比 model-B
+更强」**。要把榜单当作「模型能力对照」，必须叠加客户端签名 + 模型侧 attestation
+（见 `PROPOSAL_API.md` §3 的诚实版说明），那需要另开一张卡，不在本线职责内。
+
 **「n/a」是设计内的合法状态，不是缺陷**：当模型没有任何首次激活特性时（如
 `synthetic-model-c`、真实链的 `manual-mock`），`retention.features_first_activated`
 为空、`half_life_epochs` 为 `None`（渲染为「—」），同时 `sample_size_warning=true`。
@@ -238,6 +253,47 @@ python analyze_chain.py [--by-model] [--json <输出>]               # 无存档
 ---
 
 ## 6. 数据发布建议（白皮书 §14.5）
+
+### 6.1 metrics.json 公开发布契约（`export_public.py --metrics`）
+
+`export_public.py` 在导出 `chain_state.json` 的同时，可一并导出 `metrics.json`
+（供前端/榜单直接消费，见 `LEADERBOARD.md`）。两者共用同一份存档，链高必须一致。
+
+**键名契约（`analyze_chain.PUBLIC_METRICS_KEYS`，顺序即写出顺序）**：
+
+| 顶层键 | 类型 | 含义 |
+|---|---|---|
+| `schema_version` | int | **公开契约版本**，由 `METRICS_SCHEMA_VERSION` 控制；仅增不减，键名增/删/改名或语义变化时 +1。当前 `1`。⚠️ 它与 `schema.schema_version`（分析器口径版本，当前 `1`）是**两条独立版本线** |
+| `generated_by` | str | 固定 `"export_public.py --metrics"` |
+| `readonly` | bool | 始终 `True`（只读快照） |
+| `chain_height` | int | 便捷冗余，等价于 `chain.total_height`；用于让前端一次比对「两份文件是否来自同一链」 |
+| `schema` | obj | 分析器元信息（`analyzer` / `schema_version` / `epoch_blocks` / `format_version` / `ecdsa_backend` / `signature_verification`） |
+| `source` | obj | `{path, label}` |
+| `chain` | obj | 链与共识指标（`total_height` / `main_chain_blocks` / `epoch_count`） |
+| `language_evolution` | obj | 语言演化指标 |
+| `chain_consensus` | obj | 共识指标 |
+| `ledger` | obj | 账本指标 |
+| `poi` | obj | PoI 工作量指标 |
+| `by_model` | obj | **跨 AI 创造力分区**（模型身份榜唯一数据源）；含 `derived_from` / `scope` / `sample_size_warning_threshold` / `models[]` / `collaboration` |
+| `field_provenance` | obj | `derived_from` / `avoided_fields` / `epoch_formula` |
+| `warnings` | list[str] | 样本量 / 缺依赖等警示 |
+
+**两条硬红线（导出脚本强制，不得回归）**：
+- a) 两个输出文件都不得出现 `private_key`（沿用既有私钥剥离断言）；
+- b) **公开快照必须携带 `model_metadata`**：`chain_state.json.blocks[]` 每一块
+  都有 `model_metadata` 键、`metrics.json.by_model.models` 至少有一个非空 `model_id`
+  分区；缺失即拒绝写出并退出码 1。理由见 `export_public.py` 的 `assert_model_identity`：
+  没有模型身份，跨 AI 榜就静默变空，比报错更糟。
+
+**`schema_version` 递增规则**：`PUBLIC_METRICS_KEYS` 发生增/删/改名，或任一既有键
+的值语义变化（如 `by_model.models[]` 新增必需子字段）→ `METRICS_SCHEMA_VERSION += 1`，
+并在本小节记录变更。分析器自身口径变化只动 `ANALYZER_SCHEMA_VERSION`，不牵连公开契约。
+
+**导出命令**：
+```
+python export_public.py --in <存档> --out chain_state.json --metrics metrics.json
+python export_public.py --in <存档> --out chain_state.json          # 只导出链状态（不产出 metrics.json）
+```
 
 **导出格式。** 用 `persistence.export_chain` 产出的 chain-v2 JSON 作为发布格式，
 不要另造格式。它是自包含的：`blocks` + `sleeping_branches` + `miners` +
@@ -526,7 +582,9 @@ $ python analyze_chain.py --synthetic --by-model
 |---|---|
 | `analyze_chain.py` | 离线链分析器（CLI + 指标计算 + 报告渲染） |
 | `EXPERIMENT_METRICS.md` | 本文档：指标定义、计算口径、来源字段、运行示例、发布建议 |
-| `tests/test_analyze_chain.py` | 58 个测试用例（其中 26 项需 ecdsa 依赖：合成链指标 11 + 验签/篡改 5 + 无参回退 exit0 1 + --synthetic exit0 1 + 合成链 by-model 6 + GBK 控制台合成链 2），覆盖合成链指标、边界、错误处理、依赖边界、`--verify` 与篡改检测、缺依赖跳过与中文提示、无参数回退、跨 AI 创造力指标（by-model）、GBK 控制台安全（含 --json UTF-8 不变性） |
+| `tests/test_analyze_chain.py` | 66 个测试用例（其中 30 项需 ecdsa 依赖：合成链指标 11 + 验签/篡改 5 + 无参回退 exit0 1 + --synthetic exit0 1 + 合成链 by-model 6 + GBK 控制台合成链 2 + 公开指标导出 8）。新增 8 项覆盖：`--metrics` 顶层键名契约与版本、链高一致性、私钥零泄漏回归、公开快照含 `model_metadata` 红线、缺 `model_metadata` 拒绝写出、断言函数对空分区拒绝、`--metrics` 缺省不产出指标文件、结构化提案构造两模型身份正确分组。其余覆盖合成链指标、边界、错误处理、依赖边界、`--verify` 与篡改检测、缺依赖跳过与中文提示、无参数回退、跨 AI 创造力指标（by-model）、GBK 控制台安全（含 --json UTF-8 不变性） |
+| `metrics.json` | 由 `export_public.py --metrics` 落盘的公开指标文件（卡 2/4 新增），键名契约见 §6.1，`schema_version=1` |
+| `LEADERBOARD.md` | 卡 2/4 新增：跨 AI 创造力榜口径、指标定义表、样本量警示、`model_metadata` 自报不可验证的诚实提醒、可直接渲染的示例数据结构 |
 
 缺 ecdsa 依赖时（如未装 ecdsa 的解释器）：依赖项经 `@unittest.skipUnless` 跳过，
 其余用例全绿，**0 失败 0 错误**；无参回退与 `--synthetic` 打印中文可执行提示并以
@@ -560,5 +618,6 @@ $ python analyze_chain.py --synthetic --by-model
 UTF-8 容错 + 字符替换后的状态下通过；GBK 强制环境下的专项验证见
 `GbkConsoleSafetyTest`（subprocess + `PYTHONIOENCODING=gbk`，4 项）。
 
-未修改任何既有文件；未执行任何 git add / commit；未改动或删除 `data/` 与
-`data/chain_v1.json`；未启动 HTTP 服务、未占用端口 28417。
+未修改任何既有文件（`analyze_chain.py` 仅新增 `build_metrics` / `METRICS_SCHEMA_VERSION`
+/ `PUBLIC_METRICS_KEYS` 契约常量，未改既有计算口径）；未执行任何 git add / commit；
+未改动或删除 `data/` 与 `data/chain_v1.json`；未启动 HTTP 服务、未占用端口 28417。

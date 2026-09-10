@@ -66,6 +66,20 @@ EPOCH_BLOCKS = 100                     # 与 epoch_manager.EPOCH_BLOCKS 对齐
 ANALYZER_NAME = "analyze_chain.py"
 ANALYZER_SCHEMA_VERSION = 1
 
+# metrics.json 的公开契约版本（由 `export_public.py --metrics` 落盘，供前端直接消费）。
+# 递增规则：只增不减。metrics.json 顶层键名（PUBLIC_METRICS_KEYS）发生增/删/改名，
+# 或任一既有键的值语义发生变化时 +1，并在 EXPERIMENT_METRICS.md 记录变更。
+# ⚠️ 它与 report["schema"]["schema_version"]（分析器报告口径版本）是两条独立的
+# 版本线：前者描述「公开文件契约」，后者描述「指标计算口径」，不要混用。
+METRICS_SCHEMA_VERSION = 1
+
+# metrics.json 顶层键名契约（顺序即 build_metrics 的写出顺序；UI 可按名取值）。
+PUBLIC_METRICS_KEYS = (
+    "schema_version", "generated_by", "readonly", "chain_height",
+    "schema", "source", "chain", "language_evolution", "chain_consensus",
+    "ledger", "poi", "by_model", "field_provenance", "warnings",
+)
+
 BACKEND_PYTHON_ECDSA = "python-ecdsa"          # ecdsa 可用：走 crypto_key.verify_block_signature
 BACKEND_UNAVAILABLE = "unavailable"            # 本机缺少 ecdsa：不验签，仅标注
 VERIFY_SKIPPED_NO_ECDSA = "skipped_no_ecdsa"   # --json 中 signature_verification 的取值
@@ -1092,6 +1106,28 @@ def build_report(data: dict, *, source: str, source_label: str,
     }
 
     return report, _render_text(report, include_by_model=include_by_model)
+
+
+def build_metrics(data: dict, *, source: str, source_label: str) -> dict:
+    """构造 metrics.json 的公开结构（顶层键名见 PUBLIC_METRICS_KEYS）。
+
+    与 build_report 的关系：metrics.json = 分析器报告 + 少量发布信封字段
+    （schema_version / generated_by / readonly / chain_height）。报告本身的键名
+    与计算口径不变，因此 report["schema"]["schema_version"] 不因本函数递增——
+    两条版本线各司其职。
+
+    chain_height 是便捷冗余键（等价于 chain.total_height），用于让前端一次比对
+    「metrics.json 与 chain_state.json 是否来自同一份链」。
+    """
+    report, _ = build_report(data, source=source, source_label=source_label)
+    metrics = {
+        "schema_version": METRICS_SCHEMA_VERSION,
+        "generated_by": "export_public.py --metrics",
+        "readonly": True,
+        "chain_height": report["chain"]["total_height"],
+    }
+    metrics.update(report)
+    return metrics
 
 
 def _render_text(report: dict, *, include_by_model: bool = False) -> str:

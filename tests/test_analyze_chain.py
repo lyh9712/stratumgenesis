@@ -963,5 +963,217 @@ class GbkConsoleSafetyTest(unittest.TestCase):
         self.assertIn("高度", buffer.getvalue())
 
 
+@unittest.skipUnless(_ecdsa_available(), ECDSA_REQUIRED)
+class PublicMetricsExportTest(unittest.TestCase):
+    """`export_public.py --metrics` 的落盘契约与两条红线（私钥剥离 / 模型身份）。
+
+    全部走进程内调用 export_public._cli，不起 HTTP 服务；输入存档与输出文件
+    一律落在系统临时目录，不碰项目 data/，也不在仓库里留任何探针文件。
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.mkdtemp(prefix="stratum_metrics_test_")
+        self.archive = os.path.join(self._tmpdir, "archive.json")
+        self.out_state = os.path.join(self._tmpdir, "chain_state.json")
+        self.out_metrics = os.path.join(self._tmpdir, "metrics.json")
+
+    def tearDown(self):
+        for name in os.listdir(self._tmpdir):
+            try:
+                os.remove(os.path.join(self._tmpdir, name))
+            except OSError:
+                pass
+        try:
+            os.rmdir(self._tmpdir)
+        except OSError:
+            pass
+
+    def _run_cli(self, *extra):
+        """调用导出脚本，返回 (退出码, 标准输出)。"""
+        import export_public
+        buffer = io.StringIO()
+        argv = ["--in", self.archive, "--out", self.out_state] + list(extra)
+        with contextlib.redirect_stdout(buffer):
+            code = export_public._cli(argv)
+        return code, buffer.getvalue()
+
+    def _write_min_archive(self):
+        """写一份真实有效（可被 persistence.rebuild_store 解析）的 chain-v2 存档。
+
+        用 server.build_server_state(fresh=True) 生成的链含完整 proposal/signature，
+        api_chain_state 可正常序列化；所有区块 model_metadata 为 "manual-mock"。
+        """
+        import server as srv
+        srv.build_server_state(fresh=True, persist_path=self.archive)
+
+    # ---- 用例 1：--metrics 输出结构稳定（顶层键名与契约常量一致）----
+    def test_metrics_top_level_keys_match_contract(self):
+        self._write_min_archive()
+        code, text = self._run_cli("--metrics", self.out_metrics)
+        self.assertEqual(code, 0, text)
+        with open(self.out_metrics, encoding="utf-8") as handle:
+            metrics = json.load(handle)
+        self.assertEqual(tuple(sorted(metrics.keys())),
+                         tuple(sorted(analyze_chain.PUBLIC_METRICS_KEYS)))
+        self.assertEqual(metrics["schema_version"],
+                         analyze_chain.METRICS_SCHEMA_VERSION)
+        self.assertTrue(metrics["readonly"])
+        self.assertEqual(metrics["generated_by"], "export_public.py --metrics")
+        # 分析器自身口径版本仍独立存在，不因公开契约而变
+        self.assertEqual(metrics["schema"]["schema_version"],
+                         analyze_chain.ANALYZER_SCHEMA_VERSION)
+
+    # ---- 用例 2：两份输出的链高必须一致 ----
+    def test_metrics_chain_height_matches_chain_state(self):
+        self._write_min_archive()
+        code, text = self._run_cli("--metrics", self.out_metrics)
+        self.assertEqual(code, 0, text)
+        with open(self.out_metrics, encoding="utf-8") as handle:
+            metrics = json.load(handle)
+        with open(self.out_state, encoding="utf-8") as handle:
+            state = json.load(handle)
+        self.assertEqual(metrics["chain_height"], state["chain_height"])
+        self.assertGreaterEqual(metrics["chain_height"], 1)
+
+    # ---- 用例 3（红线 a 回归）：两个输出文件都零私钥 ----
+    def test_both_outputs_leak_no_private_key(self):
+        self._write_min_archive()
+        code, text = self._run_cli("--metrics", self.out_metrics)
+        self.assertEqual(code, 0, text)
+        for path in (self.out_state, self.out_metrics):
+            with open(path, encoding="utf-8") as handle:
+                content = handle.read()
+            self.assertNotRegex(content, r"private[\s_\-]*key",
+                                f"{os.path.basename(path)} 出现私钥字段痕迹")
+            import export_public
+            self.assertIsNone(export_public._SECRET_RE.search(content))
+        # 矿工段仍保留公开字段
+        with open(self.out_state, encoding="utf-8") as handle:
+            state = json.load(handle)
+        for miner in state.get("miners", []):
+            self.assertIn("miner_pubkey_b64", miner)
+
+    # ---- 用例 4（红线 b）：公开快照必须含 model_metadata ----
+    def test_public_snapshot_carries_model_metadata(self):
+        self._write_min_archive()
+        code, text = self._run_cli("--metrics", self.out_metrics)
+        self.assertEqual(code, 0, text)
+        with open(self.out_state, encoding="utf-8") as handle:
+            state = json.load(handle)
+        for block in state["blocks"]:
+            self.assertIn("model_metadata", block)
+        with open(self.out_metrics, encoding="utf-8") as handle:
+            metrics = json.load(handle)
+        models = metrics["by_model"]["models"]
+        self.assertTrue(models, "by_model 分区不得为空")
+        self.assertTrue(all(str(m.get("model_id") or "").strip() for m in models))
+
+    # ---- 用例 5（红线 b 反向）：缺 model_metadata 必须拒绝写出 ----
+    def test_missing_model_metadata_is_rejected(self):
+        """模拟「未升级的导出路径」：/chain-state 不带 model_metadata → 两个文件都不写出。"""
+        import server as srv
+        self._write_min_archive()
+        original = srv.api_chain_state
+
+        def stripped(state):
+            payload = original(state)
+            for block in payload.get("blocks", []):
+                block.pop("model_metadata", None)
+            return payload
+
+        srv.api_chain_state = stripped
+        try:
+            code, text = self._run_cli("--metrics", self.out_metrics)
+        finally:
+            srv.api_chain_state = original
+        self.assertEqual(code, 1)
+        self.assertIn("模型身份自检未通过", text)
+        self.assertFalse(os.path.exists(self.out_metrics), "断言失败时不得产出文件")
+        self.assertFalse(os.path.exists(self.out_state), "断言失败时不得产出文件")
+
+    # ---- 用例 6：断言函数本身对 by_model 分区为空的情形也拒绝 ----
+    def test_assert_model_identity_rejects_empty_partition(self):
+        import export_public
+        payload = {"blocks": [{"height": 0, "model_metadata": "genesis"}]}
+        with self.assertRaises(export_public.ExportError) as ctx:
+            export_public.assert_model_identity(payload, {"by_model": {"models": []}})
+        self.assertIn("模型身份自检未通过", str(ctx.exception))
+        with self.assertRaises(export_public.ExportError):
+            export_public.assert_model_identity(
+                payload, {"by_model": {"models": [{"model_id": "  "}]}})
+        with self.assertRaises(export_public.ExportError):
+            export_public.assert_model_identity({"blocks": []}, {"by_model": {}})
+        # 正例：不抛异常
+        export_public.assert_model_identity(
+            payload, {"by_model": {"models": [{"model_id": "manual-mock"}]}})
+
+    # ---- 用例 7：不指定 --metrics 时不产出指标文件（既有行为不变）----
+    def test_without_metrics_flag_no_metrics_file(self):
+        self._write_min_archive()
+        with open(self.archive, encoding="utf-8") as handle:
+            before = handle.read()
+        code, text = self._run_cli()
+        self.assertEqual(code, 0, text)
+        self.assertTrue(os.path.exists(self.out_state))
+        self.assertFalse(os.path.exists(self.out_metrics))
+        with open(self.archive, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), before, "源存档不得被修改")
+
+    # ---- 用例 7：结构化提案构造的两个模型身份 → by_model 正确分组 ----
+    def test_by_model_groups_two_structured_proposal_models(self):
+        import server as srv
+        state = srv.build_server_state(fresh=True, persist_path=self.archive)
+        base_height = state.store.height
+        pubkey = srv.b64e(sorted(state.registry.miners)[0])
+
+        plan = [
+            ("self-written-tail", "(head (tail (list 1 2 3)))",
+             "(head (tail (list 1 2 3)))", 2, ["tail", "head", "list"], "model-alpha"),
+            ("self-written-eq", "(eq (% 9 4) 1)",
+             "(eq (% 9 4) 1)", 1, ["eq", "%", "//"], "model-beta"),
+        ]
+        for feature_id, demo, program, expected, activation, model in plan:
+            response = srv.api_propose_structured(state, {
+                "feature_id": feature_id,
+                "specification": f"{model} 自写的演示",
+                "demo_code": demo,
+                "test_cases": [{"program": program, "expected": expected}],
+                "activation": activation,
+                "model_metadata": model,
+                "miner_pubkey_b64": pubkey,
+            })
+            self.assertTrue(response["success"], f"{model} 上链失败：{response}")
+
+        code, text = self._run_cli("--metrics", self.out_metrics)
+        self.assertEqual(code, 0, text)
+
+        with open(self.out_metrics, encoding="utf-8") as handle:
+            metrics = json.load(handle)
+        with open(self.out_state, encoding="utf-8") as handle:
+            state_json = json.load(handle)
+
+        # 链高：预沉积 + 2 个新提案
+        self.assertEqual(state_json["chain_height"], base_height + 2)
+        self.assertEqual(metrics["chain_height"], state_json["chain_height"])
+
+        model_ids = {m["model_id"] for m in metrics["by_model"]["models"]}
+        self.assertIn("model-alpha", model_ids)
+        self.assertIn("model-beta", model_ids)
+        # 预沉积链的既有身份仍在，不得被覆盖
+        self.assertIn("manual-mock", model_ids)
+
+        # 新块在 chain_state 里的 model_metadata 与提交值一致
+        on_chain = {b["feature_name"]: b.get("model_metadata")
+                    for b in state_json["blocks"]}
+        self.assertEqual(on_chain.get("self-written-tail"), "model-alpha")
+        self.assertEqual(on_chain.get("self-written-eq"), "model-beta")
+
+        # 分组计数：每个新模型各 1 块主链提案
+        counts = {m["model_id"]: m["acceptance"]["main_chain_blocks"]
+                  for m in metrics["by_model"]["models"]}
+        self.assertEqual(counts.get("model-alpha"), 1)
+        self.assertEqual(counts.get("model-beta"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

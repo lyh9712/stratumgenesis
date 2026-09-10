@@ -6,6 +6,11 @@
 完全对齐，供 index.html 在拿不到后端时自动降级为「只读展馆」模式
 （GitHub Pages / 任意纯静态托管）。
 
+附带 `--metrics <path>` 可同时导出 metrics.json：把 analyze_chain 的实验指标
+（含 by_model 跨 AI 创造力分区）落成前端可直接消费的数据文件，口径见
+LEADERBOARD.md 与 EXPERIMENT_METRICS.md。metrics.json 是**新文件**，
+不改变 chain_state.json 的既有字段名与结构。
+
 安全红线
 --------
 persistence.py 的存档（data/chain_v1.json）**明文保存矿工私钥**
@@ -16,11 +21,17 @@ persistence.py 的存档（data/chain_v1.json）**明文保存矿工私钥**
    的公开字段），私钥一律丢弃；
 2. 写出前用代码断言「序列化文本中不含 private_key 及其常见变体」，
    不满足即拒绝写出并以非零码退出（宁可不产出，也不产出泄密文件）；
-3. 只做「读取 + 派生 + 写出」，不修改任何既有文件、不动 data/。
+   **两个输出文件（chain_state.json / metrics.json）都执行同一条断言**；
+3. **模型身份红线**：公开快照必须携带 model_metadata——chain_state.json 的
+   blocks[] 与 metrics.json 的 by_model 分区各一处，缺失即报错并拒绝写出。
+   没有模型身份，跨 AI 创造力榜（--by-model / LEADERBOARD.md）就没有数据源，
+   与其产出一份「看起来完整但榜单空白」的快照，不如直接失败；
+4. 只做「读取 + 派生 + 写出」，不修改任何既有文件、不动 data/。
 
 用法
 ----
     python export_public.py --in data/chain_v1.json --out chain_state.json
+    python export_public.py --in data/chain_v1.json --out chain_state.json --metrics metrics.json
 
 退出码
 ------
@@ -78,6 +89,18 @@ def _import_project_modules():
             f"若确为标准库/依赖缺失，请先安装 requirements.txt 中的依赖。"
         ) from error
     return persistence, server
+
+
+def _import_analyze_chain():
+    """延迟导入分析器（仅在 --metrics 时需要）。"""
+    try:
+        import analyze_chain
+    except Exception as error:
+        raise ExportError(
+            f"无法导入 analyze_chain.py：{error}。"
+            f"请在项目根目录下运行本脚本；若其他开发线正在编辑该文件，请稍后重试。"
+        ) from error
+    return analyze_chain
 
 
 def strip_miners(miners: list) -> list:
@@ -146,6 +169,74 @@ def build_public_payload(archive_path: str) -> tuple[dict, dict]:
     return payload, stats
 
 
+def build_metrics_payload(archive_path: str) -> dict:
+    """读取存档 → 生成 metrics.json 的公开结构（含 by_model 跨 AI 分区）。
+
+    键名与版本契约见 analyze_chain.PUBLIC_METRICS_KEYS / METRICS_SCHEMA_VERSION，
+    口径见 LEADERBOARD.md。任何一步失败抛 ExportError。
+    """
+    analyze_chain = _import_analyze_chain()
+
+    if not os.path.exists(archive_path):
+        raise ExportError(f"存档文件不存在：{archive_path}")
+
+    try:
+        data = analyze_chain.load_archive(archive_path)
+    except analyze_chain.AnalysisError as error:
+        raise ExportError(f"存档校验失败：{error}") from error
+
+    try:
+        return analyze_chain.build_metrics(
+            data,
+            source=os.path.abspath(archive_path),
+            source_label="archive",
+        )
+    except Exception as error:
+        raise ExportError(f"生成实验指标失败：{error}") from error
+
+
+def assert_model_identity(payload: dict, metrics: dict) -> None:
+    """模型身份红线：公开快照必须携带 model_metadata，缺失即拒绝写出。
+
+    任务书要求「两处各一」，故分别校验：
+      1) chain_state.json —— blocks[] 每一块都必须有 model_metadata 键
+         （创世块同样带，值为 "genesis"）；休眠分支不计，因其不参与榜单；
+      2) metrics.json —— by_model.models 至少有一个非空 model_id 的分区。
+
+    理由：model_metadata 是「跨 AI 创造力榜」唯一的数据源。若它缺失，
+    榜单会静默变空， reader 会误以为「没有差异」而不是「没有数据」——
+    这是比报错更糟的结果。
+    """
+    blocks = payload.get("blocks") or []
+    if not blocks:
+        raise ExportError(
+            "模型身份自检未通过：chain_state.json 的 blocks[] 为空，"
+            "无法确认快照携带 model_metadata。请检查存档是否损坏。"
+        )
+    missing = [b.get("height") for b in blocks if "model_metadata" not in b]
+    if missing:
+        shown = ", ".join(str(h) for h in missing[:10])
+        more = "…" if len(missing) > 10 else ""
+        raise ExportError(
+            "模型身份自检未通过：chain_state.json 有 "
+            f"{len(missing)} 个区块缺少 model_metadata 字段（高度：{shown}{more}）。"
+            "跨 AI 创造力榜（--by-model / LEADERBOARD.md）将无数据源，已拒绝写出。"
+        )
+
+    partition = metrics.get("by_model") or {}
+    models = partition.get("models") or []
+    if not models:
+        raise ExportError(
+            "模型身份自检未通过：metrics.json 的 by_model.models 为空，"
+            "未能从 model_metadata 分出任何模型分区。已拒绝写出。"
+        )
+    if not any(str(m.get("model_id") or "").strip() for m in models):
+        raise ExportError(
+            "模型身份自检未通过：metrics.json 的 by_model.models 存在，"
+            "但 model_id 全为空值，无法构成有效分区。已拒绝写出。"
+        )
+
+
 def assert_no_secret(text: str) -> None:
     """自我断言：序列化文本中不得出现任何私钥字段痕迹。"""
     hit = _SECRET_RE.search(text)
@@ -189,6 +280,9 @@ def _cli(argv=None) -> int:
                         help=f"源存档路径（默认 {DEFAULT_IN}）")
     parser.add_argument("--out", dest="out", default=DEFAULT_OUT,
                         help=f"输出路径（默认 {DEFAULT_OUT}）")
+    parser.add_argument("--metrics", dest="metrics", default=None,
+                        help="同时导出实验指标 metrics.json（含 by_model 跨 AI 分区）；"
+                             "不指定则只导出 chain_state.json")
     args = parser.parse_args(argv)
 
     try:
@@ -196,6 +290,22 @@ def _cli(argv=None) -> int:
     except ExportError as error:
         print(f"[错误] {error}")
         return 1
+
+    metrics = None
+    if args.metrics:
+        try:
+            metrics = build_metrics_payload(args.src)
+        except ExportError as error:
+            print(f"[错误] {error}")
+            return 1
+
+    # 模型身份红线：先于序列化与写出执行（缺失即失败，不产出「榜单空白」的快照）
+    if metrics is not None:
+        try:
+            assert_model_identity(payload, metrics)
+        except ExportError as error:
+            print(f"[错误] {error}")
+            return 1
 
     try:
         text = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2)
@@ -228,6 +338,33 @@ def _cli(argv=None) -> int:
         print(f"[错误] 落盘后私钥复检未通过：{error}")
         return 1
 
+    metrics_bytes = None
+    if metrics is not None:
+        try:
+            metrics_text = json.dumps(metrics, ensure_ascii=False, sort_keys=True, indent=2)
+        except (TypeError, ValueError) as error:
+            print(f"[错误] 指标序列化失败（含不可序列化字段）：{error}")
+            return 1
+        try:
+            assert_no_secret(metrics_text)
+            write_atomic(args.metrics, metrics_text)
+        except ExportError as error:
+            print(f"[错误] {error}")
+            return 1
+        # 落盘后二次校验
+        try:
+            with open(args.metrics, "r", encoding="utf-8") as handle:
+                metrics_on_disk = handle.read()
+            assert_no_secret(metrics_on_disk)
+            json.loads(metrics_on_disk)
+            metrics_bytes = len(metrics_on_disk.encode("utf-8"))
+        except (OSError, ValueError) as error:
+            print(f"[错误] 指标落盘校验失败：{error}")
+            return 1
+        except ExportError as error:
+            print(f"[错误] 指标落盘后私钥复检未通过：{error}")
+            return 1
+
     print("[导出完成] 公开静态链数据已生成")
     print(f"  源存档：{args.src}（format_version={stats['source_format_version']}）")
     print(f"  输出：{args.out}")
@@ -237,6 +374,21 @@ def _cli(argv=None) -> int:
           f"已剥离 {stats['source_miner_keys_stripped']} 组私钥）")
     print(f"  文件大小：{len(on_disk.encode('utf-8')) / 1024:.1f} KB")
     print("  安全自检：输出内容未检出 private_key 字段痕迹（已通过）")
+
+    if metrics is not None:
+        heights_match = (metrics.get("chain_height") == stats["chain_height"])
+        print(f"  指标文件：{args.metrics}（{metrics_bytes / 1024:.1f} KB）")
+        print(f"    metrics.schema_version = {metrics.get('schema_version')} · "
+              f"by_model 分区 {len((metrics.get('by_model') or {}).get('models') or [])} 个模型")
+        print(f"    链高一致性：metrics.json={metrics.get('chain_height')} vs "
+              f"chain_state.json={stats['chain_height']} → "
+              f"{'一致' if heights_match else '★不一致★'}")
+        print("    模型身份自检：chain_state.blocks[] 与 metrics.by_model 均含 "
+              "model_metadata（已通过）")
+        if not heights_match:
+            print("  [错误] 两份输出的链高不一致，可能来自不同的链快照。")
+            return 1
+
     print("  提示：把本文件与 index.html 一起放到静态托管即可获得只读展馆。")
     return 0
 

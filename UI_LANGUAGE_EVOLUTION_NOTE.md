@@ -81,3 +81,62 @@
 - 沙箱「未引种」提示基于错误类型/消息的模式识别（`SB_UNIMPORTED_PATTERNS`），只做展示增强，
   不拦截、不改写任何请求；
 - 本文件不登记归档索引（由监督者最后统一处理，避免多线写同一索引文件）。
+
+---
+
+# 附：并行线 A 第二阶段 —— 休眠分支 / 分叉可视化
+
+> 追加日期：2026-09-10（第二阶段，单独提交）
+
+## 变更声明
+
+仍在 `index.html` 内完成（纯前端，未改动任何 `.py`、API 契约与后端行为）：
+数据全部来自 `GET /chain-state` 的 `sleeping_branches[]`（height / epoch / miner_label /
+feature_name / description / demo_code / test_cases / block_hash_b64 / reason）。
+
+## 新增 UI 要素 → id / class 对照
+
+| 要素 | id / class | 说明 |
+|---|---|---|
+| 顶部工具栏按钮 | `#sleeping-btn` | 开关休眠分支侧栏 |
+| 休眠分支侧栏 | `#sleeping-side`（`.open`） | 右侧滑出，z-index 低于 `#langmap` 之外的既有面板冲突（新元素） |
+| 关闭按钮 | `#sleeping-close` | |
+| 空态引导 | `#sleeping-empty` | 无分支时显示引导文案（输入「修改创世内核并启用严格求值」） |
+| 分组列表 | `#sleeping-groups` / `.sleep-group` / `.sg-head` / `.sg-count` | 按拒绝原因分类（见 `SLEEPING_REASON_GROUPS`） |
+| 分支区块卡 | `.sleep-card`（`.sc-head`/`.sc-h`/`.sc-name`/`.sc-miner`/`.sc-reason`/`.sc-hash`） | 点击查看详情 |
+| 分支详情 | `#sleeping-detail`（`.sd-kv`/`.sd-reason`/`.sd-code`/`.sd-shadow`/`#sd-close-btn`） | 高度/纪元/矿工/特性/理由/哈希/演示/测试 + 主链对照提示 |
+| 影子岩层 | `.layer.shadow-active` / `.genesis.shadow-active` | 主链同高度岩层半透明高亮（对照）；收起详情时清除 |
+
+## 拒绝原因分类（`SLEEPING_REASON_GROUPS`）
+
+按 `reason` 前缀/关键词稳定归类：`kernel_compatibility`→创世内核冲突；`signature`→签名校验失败；
+`structure`→结构/父块校验失败；`poi`→PoI 词元不足；`parse`→语法解析失败；`activation`→特性激活
+校验失败；`sandbox`→沙箱运行失败；`language_evolution`→语言演化校验失败；`utxo`→UTXO 交易校验失败；
+含「平票」→平票落选；含「落选」→冲突落选；其余→其他休眠。
+
+## 数据流与刷新
+
+- `loadChain()` 成功后调用 `renderSleeping(state)`（与主链/语言地层同源刷新）；
+- 提案被拒时调用 `refreshSleepingOnly()`：轻量重拉 `/chain-state` 只更新休眠分支与状态行，
+  **不重建地层剖面**（保留岩层碎裂动画）；
+- 点击卡片 → `showSleepingDetail(b, state)`：渲染详情；若主链存在同高度块，其岩层加
+  `.shadow-active` 并滚动到可见；否则提示「主链无此高度岩层 —— 该分支是孤悬分叉」。
+
+## 浏览器实测记录（127.0.0.1:28417，干净链 fresh 起服）
+
+1. 空态：打开侧栏显示引导文案，无分组；控制台零错误；
+2. 提交「修改创世内核并启用严格求值」→ 状态行「未写入地层 · 校验未通过（kernel_compatibility）·
+   休眠分支 1」；侧栏出现 1 张卡：H103 · 内核算术扩展 · `kernel_compatibility: GENESIS_KERNEL_CONFLICT`，
+   分组「创世内核冲突 1 条」；
+3. 点卡片 → 详情完整（拒绝理由/哈希/演示代码/测试用例），提示「主链无此高度岩层 —— 该分支是孤悬分叉」；
+4. JS 层对照验证（构造同高度分支，主链 H102）：`shadow-active` 高亮 + 「主链同高度 H102 · 已高亮」提示，
+   收起后高亮清除；
+5. 既有交互回归：推演/钻探/语言地层/画廊按钮与输入框全部在位、控制台零错误。
+
+## 已知说明（第二阶段）
+
+- 单机后端行为下，校验拒绝类分支高度恒为主链高度 + 1，主链**没有**同高度岩层，因此 UI 实际
+  场景显示「孤悬分叉」；「同高度冲突落选」分支需候选池同高度冲突（当前单机顺序提交无法自然触发），
+  影子岩层高亮逻辑已实现并可用 JS 层验证，属防御性保留；
+- 截图管线在第二阶段实测时不稳定（js/DOM 断言均正常），视觉证据以文本断言与第一阶段全屏截图为准；
+- 本文件不登记归档索引（监督者统一处理）。

@@ -1,7 +1,14 @@
 """StratumGenesis 极简本地 HTTP 服务。
 
 只使用 Python 标准库 http.server，不引入 flask/fastapi 等第三方 Web 框架
-（ecdsa 为项目既有依赖）。监听 127.0.0.1:28417，仅限本机访问，不支持公网。
+（ecdsa 为项目既有依赖）。默认监听 127.0.0.1:28417，仅限本机访问，不支持公网；
+绑定地址可用环境变量 STRATUM_HOST 覆盖（不设置时行为完全不变，详见 DEPLOY.md）。
+
+提案有两条通道：
+- POST /propose：文本通道，由服务端把提案文本映射成代码（v0.2 既有行为，不变）；
+- POST /propose-structured：结构化通道，外部 AI/脚本直接提交 demo_code /
+  test_cases / activation / model_metadata，服务端不改写提案内容（v0.3 新增，
+  见 PROPOSAL_API.md）。两条通道共用同一条 9 项校验流水线与冲突投票语义。
 
 本服务加载全部 StratumGenesis 单机模块，启动时初始化创世链并预沉积一段
 演示地层；状态默认持久化到 data/chain_v1.json（实验级 JSON 存档，非生产级
@@ -24,6 +31,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import sys
 import threading
 from dataclasses import dataclass, field, replace
@@ -40,9 +48,14 @@ from crypto_key import generate_miner_keypair, sign_block_payload
 from epoch_manager import EPOCH_BLOCKS
 from mock_tokenizer import MOCK_TOKENIZER_ID, count_poi_tokens
 from novscript import run_sandbox
+from novscript.registry import BUILTIN_POOL
 from weight_calculator import calculate_historical_weights
 
-HOST = "127.0.0.1"
+# 绑定地址：默认 127.0.0.1（仅限本机，行为与 v0.2 完全一致）。
+# ⚠️ 通过环境变量 STRATUM_HOST 改绑（如 0.0.0.0）会把「服务端持有全部私钥、
+# 无任何鉴权」的实验服务直接暴露到网络，风险自负；仅建议在受信任内网/容器中，
+# 配合外层反向代理与访问控制使用。不设置该变量时行为完全不变。
+HOST = os.environ.get("STRATUM_HOST", "127.0.0.1")
 PORT = 28417
 
 # 以 server.py 所在目录定位 index.html，避免因启动时工作目录不同而 404。
@@ -70,6 +83,21 @@ ERROR_LABELS = {
 }
 
 MINER_LABELS = ["沉积者·阿砚", "地层匠·沧石", "化石刻工·临渊"]
+
+# ---------------------------------------------------------------------------
+# v0.3：结构化提案通道（POST /propose-structured）的输入上限与白名单。
+# 目的：防脏数据进链、防超大 payload。只在结构化入口生效，不影响既有 /propose。
+# ---------------------------------------------------------------------------
+MAX_FEATURE_ID_LEN = 64
+MAX_SPECIFICATION_LEN = 2048
+MAX_CODE_LEN = 2048          # demo_code 与 test_cases[].program 共用
+MAX_TEST_CASES = 16
+MAX_MODEL_METADATA_LEN = 64
+MAX_BODY_BYTES = 256 * 1024  # 请求体字节上限（按 Content-Length 预判）
+# 模型身份白名单：仅 ASCII 字母数字与 . _ -，避免空白/不可见字符混入存档与报告。
+MODEL_METADATA_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+# 未标注模型身份时的回退值（与 analyze_chain 的 "(未标注)" 不同：那是展示层归并）。
+DEFAULT_MODEL_METADATA = "unspecified"
 
 
 def b64e(raw: bytes) -> str:
@@ -157,13 +185,19 @@ def generate_proposal(text: str) -> tuple[str, str, tuple[TestCase, ...], tuple[
     return "内核算术扩展", demo, tests, ()
 
 
-def make_poi(feature_name: str, demo: str, tests: tuple[TestCase, ...], prompt_text: str) -> PoiRecord:
-    """生成能通过 mock PoI 校验的 PoI 记录（附带足够的填充词元）。"""
+def make_poi(feature_name: str, demo: str, tests: tuple[TestCase, ...], prompt_text: str,
+             model_metadata: str = "manual-mock") -> PoiRecord:
+    """生成能通过 mock PoI 校验的 PoI 记录（附带足够的填充词元）。
+
+    model_metadata 为模型身份（v0.3 结构化提案通道传入；默认 "manual-mock"，
+    使既有文本通道与预沉积链的取值完全不变）。它已进入 canonical_bytes 与存档，
+    是 analyze_chain --by-model 的分组依据。
+    """
     prompt = f"design a NovScript extension named {feature_name}: {prompt_text}"
     output = demo + " " + " ".join(t.program for t in tests) + " " + "reasoning token " * (MIN_POI_TOKENS + 3)
     counts = count_poi_tokens(prompt, output)
     return PoiRecord(
-        "manual-mock", prompt, output, MOCK_TOKENIZER_ID,
+        model_metadata, prompt, output, MOCK_TOKENIZER_ID,
         counts.standard_input_tokens, counts.standard_output_tokens,
         counts.standard_total_tokens,
     )
@@ -285,6 +319,8 @@ def api_chain_state(state: ServerState) -> dict:
             "demo_code": block.proposal.demo_code,
             "test_cases": [{"program": t.program, "expected": t.expected} for t in block.proposal.test_cases],
             "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
+            # v0.3 追加：模型身份（来源 blocks[].poi.model_metadata，只增不改名）。
+            "model_metadata": block.poi.model_metadata,
             # 语言演化：本块激活的原语名 + 上链后语言可见特性数（语言快照）。
             "activation": list(block.activation),
             "language_features": sorted(snapshot.active_features) if snapshot else [],
@@ -322,6 +358,8 @@ def api_chain_state(state: ServerState) -> dict:
                 "demo_code": block.proposal.demo_code,
                 "test_cases": [{"program": t.program, "expected": t.expected} for t in block.proposal.test_cases],
                 "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
+                # v0.3 追加：模型身份（与 /chain-state 主链块同一来源）。
+                "model_metadata": block.poi.model_metadata,
                 "reason": state.rejection_reasons.get(block.block_hash, "休眠/落选区块"),
             })
     miners = []
@@ -412,7 +450,23 @@ def api_propose(state: ServerState, body: dict) -> dict:
                      miner_pubkey=public_key, activation=activation)
     block = replace(unsigned, signature_bytes=sign_block_payload(private_key, unsigned.canonical_bytes()))
 
-    # 完整 8 阶段校验（第 0 步 ECDSA 签名由服务端真实完成）
+    # 完整 9 项校验（第 0 步 ECDSA 签名由服务端真实完成）
+    response = _submit_block(state, block)
+    # 既有 /propose 契约（v0.2）响应字段保持不变：不追加 error_code / model_metadata。
+    response.pop("error_code", None)
+    return response
+
+
+def _submit_block(state: ServerState, block: Block) -> dict:
+    """把已签名区块送入既有校验流水线 + 候选池加权投票，返回统一响应。
+
+    既有 POST /propose 与新增 POST /propose-structured 共用本函数，保证两条
+    通道走完全相同的 9 项校验（签名→结构→内核→PoI→解析→特性激活→沙箱→
+    语言正负测试→UTXO）与同一套冲突投票语义。
+
+    返回字典恒含 error_code 键（None 表示无错误码）；调用方按需取舍字段。
+    """
+    store = state.store
     result = validate_block(block, store)
     if not result.accepted:
         # 校验不通过：存入休眠分支，不修改账本与纪元快照。
@@ -422,15 +476,16 @@ def api_propose(state: ServerState, body: dict) -> dict:
             pass
         state.rejection_reasons[block.block_hash] = f"{result.stage}: {result.error_code}"
         _auto_save(state)
-        return {"success": False, "reason": f"校验未通过（{result.stage}）", "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
+        return {"success": False, "reason": f"校验未通过（{result.stage}）", "error_code": result.error_code,
+                "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
                 "is_sleeping_branch": True, "chain_height": store.height}
 
     # 送入候选池，按 (父哈希, 高度) 分组；取回本组执行加权投票。
     state.pool.validate_and_submit(block, store)
     key = next((k for k, v in state.pool.groups().items() if block in v), None)
     if key is None:
-        return {"success": False, "reason": "候选池分组异常", "block_hash_b64": None,
-                "is_sleeping_branch": False, "chain_height": store.height}
+        return {"success": False, "reason": "候选池分组异常", "error_code": "POOL_GROUP_MISSING",
+                "block_hash_b64": None, "is_sleeping_branch": False, "chain_height": store.height}
     candidates = state.pool.remove_group(key)
     weights = calculate_historical_weights(store.main_chain())
     vote = resolve_conflict(candidates, weights)
@@ -439,13 +494,160 @@ def api_propose(state: ServerState, body: dict) -> dict:
     _auto_save(state)
 
     if vote.status == "vote_tie":
-        return {"success": False, "reason": "同高度冲突且权重平票，全部进入休眠分支", "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
+        return {"success": False, "reason": "同高度冲突且权重平票，全部进入休眠分支", "error_code": "VOTE_TIE",
+                "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
                 "is_sleeping_branch": True, "chain_height": store.height}
     if store.tip.block_hash != block.block_hash:
-        return {"success": False, "reason": "同高度冲突中该候选落选，已进入休眠分支", "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
+        return {"success": False, "reason": "同高度冲突中该候选落选，已进入休眠分支", "error_code": "VOTE_LOST",
+                "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
                 "is_sleeping_branch": True, "chain_height": store.height}
-    return {"success": True, "reason": "校验通过，已写入主链", "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
+    return {"success": True, "reason": "校验通过，已写入主链", "error_code": None,
+            "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
             "is_sleeping_branch": False, "chain_height": store.height}
+
+
+# ---------------------------------------------------------------------------
+# v0.3：结构化提案通道 POST /propose-structured
+#
+# 与既有 /propose 的区别：/propose 用关键词把「提案文本」映射成代码（演示通道），
+# 结构化通道由调用方（可以是任意 AI/脚本）直接给 feature_id / specification /
+# demo_code / test_cases / activation / model_metadata，服务端【不改写任何提案
+# 内容】，只做入参校验后送入同一条 9 项校验流水线。
+# ---------------------------------------------------------------------------
+def _rejected(state: ServerState, code: str, reason: str) -> dict:
+    """构造与既有 /propose 语义一致的失败响应（追加 error_code）。"""
+    return {"success": False, "reason": reason, "error_code": code, "block_hash_b64": None,
+            "is_sleeping_branch": False, "chain_height": state.store.height}
+
+
+def _normalize_model_metadata(value) -> str | None:
+    """规范化 model_metadata；非法返回 None，空值回退为 "unspecified"。"""
+    if value is None or value == "":
+        return DEFAULT_MODEL_METADATA
+    if not isinstance(value, str):
+        return None
+    if len(value) > MAX_MODEL_METADATA_LEN or not MODEL_METADATA_PATTERN.match(value):
+        return None
+    return value
+
+
+def _parse_structured_proposal(body: dict) -> tuple[dict | None, str | None, str | None]:
+    """校验并规范化结构化提案请求体。
+
+    返回 (payload, error_code, reason)；payload 为 None 表示校验失败。
+    payload 内容完全来自请求体——服务端只做类型/长度/白名单校验与容器规范化
+    （list -> tuple、空 model_metadata 回退），不改写任何提案语义字段。
+    """
+    # --- feature_id -------------------------------------------------------
+    feature_id = body.get("feature_id")
+    if not isinstance(feature_id, str) or not feature_id:
+        return None, "MISSING_FIELD", "feature_id 缺失或不是非空字符串"
+    if len(feature_id) > MAX_FEATURE_ID_LEN:
+        return None, "PAYLOAD_TOO_LARGE", f"feature_id 超长：上限 {MAX_FEATURE_ID_LEN} 字符，收到 {len(feature_id)}"
+    # --- specification ----------------------------------------------------
+    specification = body.get("specification")
+    if not isinstance(specification, str) or not specification:
+        return None, "MISSING_FIELD", "specification 缺失或不是非空字符串"
+    if len(specification) > MAX_SPECIFICATION_LEN:
+        return None, "PAYLOAD_TOO_LARGE", f"specification 超长：上限 {MAX_SPECIFICATION_LEN} 字符，收到 {len(specification)}"
+    # --- demo_code --------------------------------------------------------
+    demo_code = body.get("demo_code")
+    if not isinstance(demo_code, str) or not demo_code:
+        return None, "MISSING_FIELD", "demo_code 缺失或不是非空字符串"
+    if len(demo_code) > MAX_CODE_LEN:
+        return None, "PAYLOAD_TOO_LARGE", f"demo_code 超长：上限 {MAX_CODE_LEN} 字符，收到 {len(demo_code)}"
+    # --- test_cases -------------------------------------------------------
+    raw_cases = body.get("test_cases")
+    if not isinstance(raw_cases, list):
+        return None, "MISSING_FIELD", "test_cases 缺失或不是数组（允许空数组，但必须存在）"
+    if len(raw_cases) > MAX_TEST_CASES:
+        return None, "PAYLOAD_TOO_LARGE", f"test_cases 条数超限：上限 {MAX_TEST_CASES} 条，收到 {len(raw_cases)}"
+    cases: list[TestCase] = []
+    for index, item in enumerate(raw_cases):
+        if not isinstance(item, dict):
+            return None, "INVALID_FIELD_TYPE", f"test_cases[{index}] 必须是对象"
+        if "expected" not in item:
+            return None, "MISSING_FIELD", f"test_cases[{index}] 缺少 expected 字段"
+        program = item.get("program")
+        if not isinstance(program, str) or not program:
+            return None, "MISSING_FIELD", f"test_cases[{index}].program 缺失或不是非空字符串"
+        if len(program) > MAX_CODE_LEN:
+            return None, "PAYLOAD_TOO_LARGE", (
+                f"test_cases[{index}].program 超长：上限 {MAX_CODE_LEN} 字符，收到 {len(program)}")
+        cases.append(TestCase(program, item["expected"]))
+    # --- activation -------------------------------------------------------
+    raw_activation = body.get("activation")
+    if raw_activation is None:
+        raw_activation = []          # 可选：缺省视为普通区块（不改变语言能力）
+    if not isinstance(raw_activation, list):
+        return None, "INVALID_FIELD_TYPE", "activation 必须是字符串数组"
+    activation: list[str] = []
+    for name in raw_activation:
+        if not isinstance(name, str):
+            return None, "INVALID_FIELD_TYPE", "activation 内必须全是字符串"
+        # 白名单：只允许 BUILTIN_POOL 内的原语名（与第 5 步校验同口径，提前给出
+        # 可读错误码，避免以 500 形式暴露给调用方）。
+        if name not in BUILTIN_POOL:
+            return None, "UNKNOWN_FEATURE", f"activation 含未知原语 {name!r}：仅允许 BUILTIN_POOL 内的名字"
+        if name in activation:
+            # 重名会让第 6 步构造正测试注册表时抛 NameError，提前拦下。
+            return None, "DUPLICATE_ACTIVATION", f"activation 含重复原语 {name!r}"
+        activation.append(name)
+    # --- model_metadata ---------------------------------------------------
+    model_metadata = _normalize_model_metadata(body.get("model_metadata"))
+    if model_metadata is None:
+        return None, "INVALID_MODEL_METADATA", (
+            f"model_metadata 非法：限长 {MAX_MODEL_METADATA_LEN}，仅允许 [A-Za-z0-9._-]"
+            f"（留空回退为 {DEFAULT_MODEL_METADATA!r}）")
+    # --- miner_pubkey_b64 -------------------------------------------------
+    raw_pubkey = body.get("miner_pubkey_b64")
+    if not isinstance(raw_pubkey, str) or not raw_pubkey:
+        return None, "MISSING_FIELD", "miner_pubkey_b64 缺失或不是非空字符串"
+    try:
+        public_key = b64d(raw_pubkey)
+    except Exception:
+        return None, "INVALID_FIELD_TYPE", "miner_pubkey_b64 不是合法的 base64"
+    return (
+        {
+            "feature_id": feature_id,
+            "specification": specification,
+            "demo_code": demo_code,
+            "test_cases": tuple(cases),
+            "activation": tuple(activation),
+            "model_metadata": model_metadata,
+            "miner_pubkey": public_key,
+        },
+        None,
+        None,
+    )
+
+
+def api_propose_structured(state: ServerState, body: dict) -> dict:
+    """POST /propose-structured：外部 AI/脚本直接提交自己写的提案。
+
+    服务端不改写提案内容，只做入参校验；随后与既有 /propose 走完全相同的
+    9 项校验流水线 + 候选池加权投票。
+    """
+    payload, code, reason = _parse_structured_proposal(body)
+    if payload is None:
+        return _rejected(state, code, reason)
+    private_key = state.registry.private_of(payload["miner_pubkey"])
+    if private_key is None:
+        return _rejected(state, "UNKNOWN_MINER", "未知矿工身份，请先从 /chain-state 选择矿工")
+
+    proposal = Proposal(payload["feature_id"], payload["specification"],
+                        payload["demo_code"], payload["test_cases"])
+    poi = make_poi(payload["feature_id"], payload["demo_code"], payload["test_cases"],
+                   payload["specification"], model_metadata=payload["model_metadata"])
+    unsigned = Block(state.store.height + 1, state.store.tip.block_hash,
+                     state.registry.label_of(payload["miner_pubkey"]), proposal, poi,
+                     miner_pubkey=payload["miner_pubkey"], activation=payload["activation"])
+    block = replace(unsigned, signature_bytes=sign_block_payload(private_key, unsigned.canonical_bytes()))
+
+    response = _submit_block(state, block)
+    # 回显模型身份，便于调用方核对「我提交的模型身份确实落到了这个区块上」。
+    response["model_metadata"] = payload["model_metadata"]
+    return response
 
 
 def api_eval_novscript(state: ServerState, body: dict) -> dict:
@@ -486,6 +688,8 @@ def api_branches(state: ServerState) -> dict:
                 "demo_code": block.proposal.demo_code,
                 "test_cases": [{"program": t.program, "expected": t.expected} for t in block.proposal.test_cases],
                 "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
+                # v0.3 追加：模型身份（与 /chain-state 同一来源，供考古/提升前核对）。
+                "model_metadata": block.poi.model_metadata,
                 "reason": state.rejection_reasons.get(block.block_hash, "休眠/落选区块"),
                 # 提升资格预览（D8：降级块 reason 以 "reorg:" 开头，可与校验拒绝区分）。
                 "promotion_status": preview.status,
@@ -541,6 +745,16 @@ def api_promote_branch(state: ServerState, body: dict) -> dict:
 # ---------------------------------------------------------------------------
 # HTTP handler 与服务器工厂
 # ---------------------------------------------------------------------------
+def _drain(rfile, declared: int, chunk: int = 65536) -> None:
+    """抽干超限请求体（不驻留内存），避免客户端收到连接重置而拿不到错误码。"""
+    remaining = declared
+    while remaining > 0:
+        data = rfile.read(min(remaining, chunk))
+        if not data:
+            break
+        remaining -= len(data)
+
+
 def build_handler(state: ServerState):
     class StratumHandler(BaseHTTPRequestHandler):
         server_version = "StratumGenesis/0.1"
@@ -589,6 +803,20 @@ def build_handler(state: ServerState):
             self.send_error(404, "not found")
 
         def do_POST(self) -> None:
+            if self.path == "/propose-structured":
+                # v0.3 新增：结构化提案（外部 AI 提交自写 demo/activation/model_metadata）。
+                # 请求体上限按 Content-Length 预判：超限先抽干再拒绝，不读入内存、
+                # 也不让客户端拿到连接重置而看不到错误码。
+                declared = int(self.headers.get("Content-Length", "0") or 0)
+                with _STATE_LOCK:
+                    if declared > MAX_BODY_BYTES:
+                        _drain(self.rfile, declared)
+                        self._send_json(200, _rejected(
+                            state, "PAYLOAD_TOO_LARGE",
+                            f"请求体过大：上限 {MAX_BODY_BYTES} 字节，收到 {declared}"))
+                    else:
+                        self._send_json(200, api_propose_structured(state, self._read_json()))
+                return
             body = self._read_json()
             if self.path == "/propose":
                 # v0.3 阶段 E（D6）：变更类入口共享状态锁，与 /promote-branch 互斥。
@@ -610,7 +838,7 @@ def build_handler(state: ServerState):
 
 
 def create_server(state: ServerState | None = None) -> ThreadingHTTPServer:
-    """创建绑定 127.0.0.1:28417 的服务器。
+    """创建绑定 HOST:PORT 的服务器（HOST 默认 127.0.0.1）。
 
     测试与独立构造默认传 None：ServerState() 的 persist_path=None 禁用自动保存，
     避免测试污染 data/ 存档；正式启动由 main() 传入带存档路径的状态。

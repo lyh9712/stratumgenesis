@@ -54,8 +54,10 @@ class HttpApiTests(unittest.TestCase):
         self.assertTrue(epochs[0]["archived"])
         self.assertIn(1, epochs)
         self.assertFalse(epochs[1]["archived"])
+        # v0.3 追加 model_metadata（模型身份，来源 blocks[].poi.model_metadata）。
         required_fields = {"height", "epoch", "miner_label", "miner_pubkey_b64", "feature_name",
-                           "description", "demo_code", "test_cases", "block_hash_b64"}
+                           "description", "demo_code", "test_cases", "block_hash_b64",
+                           "model_metadata"}
         self.assertTrue(required_fields.issubset(blocks[1].keys()))
 
     def test_propose_valid_proposal_is_mined_to_main_chain(self):

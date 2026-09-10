@@ -34,6 +34,10 @@ class EpochSnapshot:
     summary_status: str = "pending"  # pending / finalized
     # v0.3 阶段 C 追加：该纪元结束时链级已激活的语言特性集合（语言演化档案）。
     active_features: frozenset[str] = frozenset()
+    # v0.3 阶段 D 追加：纪元作用域语言档案四元组。
+    epoch_base_features: frozenset[str] = frozenset()      # 该纪元开篇基线 = 首块引种集
+    epoch_new_features: frozenset[str] = frozenset()       # 该纪元历史首次激活的原语
+    cumulative_active_features: frozenset[str] = frozenset()  # 截至该纪元末的历史累计（旧语义）
 
 
 @dataclass
@@ -64,13 +68,25 @@ class EpochManager:
             grouped.setdefault(self.get_epoch_of_block(block.height), []).append(block)
         snapshots: list[EpochSnapshot] = []
         summary_chain: list[EpochSummary] = []
-        # 按高度顺序累积链级已激活特性：每个纪元快照记录「截至该纪元末尾」
-        # 的语言状态（含此前纪元激活的特性），供语言演化档案展示。
-        active_features: set[str] = set()
+        # 历史累计（provenance）：截至当前纪元的全部激活原语（旧语义，只增不减）。
+        cumulative: set[str] = set()
         for epoch_number in sorted(grouped):
             blocks = sorted(grouped[epoch_number], key=lambda item: item.height)
+            # 纪元作用域语言档案（v0.3 阶段 D）：
+            # - epoch_active：该纪元内有效（跨纪元默认失忆，需引种）；
+            # - base：该纪元开篇基线 = 首块引种集（首块无 activation 则为空）；
+            # - new_features：该纪元历史首次激活的原语（引种不算新特性）。
+            epoch_active: set[str] = set()
+            base: set[str] = set()
+            new_features: set[str] = set()
+            if blocks:
+                base.update(blocks[0].activation)
             for block in blocks:
-                active_features.update(block.activation)
+                for name in block.activation:
+                    epoch_active.add(name)
+                    if name not in cumulative:
+                        new_features.add(name)
+                    cumulative.add(name)
             start_height = epoch_number * EPOCH_BLOCKS
             end_height = blocks[-1].height
             # 只有主链已经到达下一个纪元起点，才将当前纪元标记归档。
@@ -89,7 +105,7 @@ class EpochManager:
                 epoch_number, start_height, end_height,
                 [bytes.fromhex(item.block_hash) for item in blocks], archived,
                 summary, summary_status,
-                frozenset(active_features),
+                frozenset(epoch_active), frozenset(base), frozenset(new_features), frozenset(cumulative),
             ))
         self._snapshots = snapshots
         self._summary_chain = summary_chain

@@ -296,8 +296,15 @@ def api_chain_state(state: ServerState) -> dict:
             # v0.3 阶段 B 追加：已归档纪元返回 finalized 摘要；未封口纪元为空。
             "summary": _summary_to_dict(snapshot.summary) if snapshot.summary else None,
             "summary_status": snapshot.summary_status,
-            # v0.3 阶段 C 追加：该纪元结束时链级已激活的语言特性。
+            # v0.3 阶段 C 追加：该纪元语言特性。
+            # ⚠️ v0.3 阶段 D 值语义变更（@deprecated）：由「自创世累计」改为
+            # 「该纪元内有效」（纪元作用域，失忆语义）。旧语义见
+            # cumulative_active_features。
             "active_features": sorted(snapshot.active_features),
+            # v0.3 阶段 D 追加：纪元作用域语言档案。
+            "epoch_base_features": sorted(snapshot.epoch_base_features),
+            "epoch_new_features": sorted(snapshot.epoch_new_features),
+            "cumulative_active_features": sorted(snapshot.cumulative_active_features),
         })
     sleeping = []
     for branch in store.sleeping_branches().values():
@@ -330,11 +337,24 @@ def api_chain_state(state: ServerState) -> dict:
         "sleeping_branches": sleeping,
         "miners": miners,
         "epoch_blocks": EPOCH_BLOCKS,
-        # v0.3 阶段 C 追加：当前链级已激活的语言特性（语言演化状态）。
-        "current_active_features": sorted(store.language_registry.snapshot()),
+        # ⚠️ v0.3 阶段 D 值语义变更（@deprecated）：由「链级累计」改为「当前纪元内
+        # 有效」（纪元作用域，失忆语义）。历史累计见 cumulative_active_features。
+        "current_active_features": sorted(store.epoch_active_features()),
+        # v0.3 阶段 D 追加：当前纪元开篇基线（= 当前纪元首块的引种集）。
+        "current_epoch_base_features": sorted(_current_epoch_base(store)),
+        # v0.3 阶段 D 追加：历史累计（provenance，只增不减，旧语义所在）。
+        "cumulative_active_features": sorted(store.ever_active_features()),
         # v0.3 阶段 B 追加：按纪元顺序的已确定摘要链（为「大断层事件」留钩子）。
         "summary_chain": [_summary_to_dict(item) for item in store.epoch_manager.summary_chain()],
     }
+
+
+def _current_epoch_base(store: ChainStore) -> frozenset[str]:
+    """当前纪元开篇基线 = 当前纪元首块的引种集（首块无 activation 则为空）。"""
+    current_epoch = store.epoch_of_height(store.height)
+    first_height = current_epoch * EPOCH_BLOCKS
+    first_block = next((block for block in store.main_chain() if block.height == first_height), None)
+    return frozenset(first_block.activation) if first_block is not None else frozenset()
 
 
 def _summary_to_dict(summary) -> dict:

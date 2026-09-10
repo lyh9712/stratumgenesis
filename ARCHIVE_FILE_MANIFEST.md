@@ -78,7 +78,8 @@
 | `tests/test_evolution.py` | 12 | v0.3 阶段 C：注册后可调用、未激活 NameError、激活名校验、重复激活拒绝、正负测试、历史块版本化重放、休眠分支隔离 |
 | `tests/test_sandbox_limits.py` | 4 | v0.3 阶段 C 收尾：输出上限超限 ResourceLimitError / 恰好等于上限成功；长列表不泄露宿主递归 / 宿主递归稳定归类 |
 | `tests/test_persistence_evolution.py` | 1 | v0.3 阶段 C 收尾 F：save→load+rebuild 后高度/哈希、逐高度语言快照、激活能力可用、未激活高度 NameError 全一致 |
-| **合计** | **110** | 全部通过 |
+| `tests/test_epoch_scope.py` | 10 | v0.3 阶段 D：跨纪元失忆、引种成功、同纪元重复拒绝、跨纪元再引种、重放一致性、分类正确、语义化报错、API 契约、边界 99/100/101、预沉积回归 |
+| **合计** | **120** | 全部通过 |
 
 ## 五、归档文档（本次新增，均为 Markdown）
 
@@ -104,6 +105,13 @@
 | `tests/test_sandbox_limits.py` | 4 项输出上限与递归归类回归（见四节） |
 | `tests/test_persistence_evolution.py` | 1 项持久化×语言演化耦合回归（见四节） |
 | `EVOLUTION_IMPLEMENTATION.md` | 阶段 C 实现说明：设计图、9 检查阶段表、正负测试原理、变更清单 |
+
+### 1.5 v0.3 阶段 D 引种机制追加登记
+
+| 文件 | 用途 |
+|---|---|
+| `tests/test_epoch_scope.py` | 10 项纪元作用域/引种回归（见四节） |
+| `INTRODUCTION_IMPLEMENTATION.md` | 阶段 D 实现说明：两层注册表、作用域校验、错误码表、API 契约变更、已知限制 |
 
 ## 六、历史设计文档（保留供参考）
 

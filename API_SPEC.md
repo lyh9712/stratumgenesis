@@ -84,9 +84,11 @@ GET http://127.0.0.1:28417/chain-state
 | 字段 | 说明 |
 |---|---|
 | `chain_height` | 主链末端高度 |
-| `current_active_features` | v0.3 阶段 C 追加：当前链级已激活的语言特性（原语名列表） |
-| `blocks` | 主链全部区块（高度升序）；`miner_label`、`miner_pubkey_b64`、`feature_name`、`description`、`demo_code`、`test_cases`、`block_hash_b64` 供前端渲染；v0.3 阶段 C 追加：`activation`（本块激活的原语名）、`language_features`（该块上链后语言可见特性数） |
-| `epochs` | 纪元快照；`archived=true` 表示已归档（前端显示为半透明古岩层）。v0.3 阶段 B 追加：`summary`（已归档纪元为 finalized 摘要对象，未封口为 null）、`summary_status`（pending/finalized）；v0.3 阶段 C 追加：`active_features`（该纪元结束时链级已激活特性） |
+| `current_active_features` | v0.3 阶段 C 追加，⚠️ **v0.3 阶段 D 值语义变更（@deprecated）**：由「链级累计」改为「当前纪元内有效」（纪元作用域，失忆语义）；历史累计见 `cumulative_active_features` |
+| `current_epoch_base_features` | v0.3 阶段 D 追加：当前纪元开篇基线（= 当前纪元首块的引种集） |
+| `cumulative_active_features` | v0.3 阶段 D 追加：历史累计（provenance，只增不减；`current_active_features` 旧语义所在） |
+| `blocks` | 主链全部区块（高度升序）；`miner_label`、`miner_pubkey_b64`、`feature_name`、`description`、`demo_code`、`test_cases`、`block_hash_b64` 供前端渲染；v0.3 阶段 C 追加：`activation`（本块激活的原语名）、`language_features`（该高度当时可用的语言集，v0.3 阶段 D 起为纪元作用域语义） |
+| `epochs` | 纪元快照；`archived=true` 表示已归档（前端显示为半透明古岩层）。v0.3 阶段 B 追加：`summary`（已归档纪元为 finalized 摘要对象，未封口为 null）、`summary_status`（pending/finalized）；v0.3 阶段 C 追加：`active_features`（⚠️ 值语义变更 @deprecated：由「自创世累计」改为「该纪元内有效」）；v0.3 阶段 D 追加：`epoch_base_features`（纪元开篇基线 = 首块引种集）、`epoch_new_features`（本纪元历史首次激活的原语）、`cumulative_active_features`（截至该纪元末的历史累计，旧语义所在） |
 | `summary_chain` | v0.3 阶段 B 追加：按纪元顺序的已确定摘要数组（与 `epochs[i].summary` 同构，为「大断层事件」预留） |
 | `sleeping_branches` | 休眠/落选区块摘要，含拒绝原因 `reason` |
 | `miners` | 可用矿工身份与链内 UTXO 余额（仅演示查询；余额与投票权重完全隔离） |
@@ -279,7 +281,46 @@ python -m unittest discover -s tests -v
 python -m compileall -q .
 ```
 
-测试覆盖：chain-state 结构、合法提案上链、内核冲突进休眠分支、未知矿工拒绝、沙箱执行成功/语法错误/未绑定名称、index.html 可访问。
+测试覆盖：chain-state 结构、合法提案上链、内核冲突进休眠分支、未知矿工拒绝、沙箱执行成功/语法错误/未绑定名称、index.html 可访问、纪元作用域与引种契约（tests/test_epoch_scope.py）。
+
+---
+
+## v0.3 阶段 D 契约变更（纪元作用域语言 + 引种）
+
+> **BREAKING（字段值语义变更）**：本版本把语言作用域从「链级只增不减」改为
+> 「纪元内有效」（失忆 + 引种）。以下字段的值语义发生变化，但**字段名与类型不变、
+> 没有删除任何字段**；旧语义由新增字段承接。已弃用语义以 `@deprecated` 标注。
+
+### 变更清单
+
+| 字段 | 变更 | 旧语义去哪了 |
+|---|---|---|
+| `current_active_features` | ⚠️ @deprecated：由「链级累计」改为「**当前纪元内**有效」（纪元首块后重置，跨纪元默认失忆） | `cumulative_active_features`（顶层，历史累计） |
+| `epochs[].active_features` | ⚠️ @deprecated：由「自创世累计」改为「**该纪元内**有效」 | `epochs[].cumulative_active_features` |
+| `blocks[].language_features` | 语义 = 该高度当时可用的语言集（已是纪元作用域，符合直觉，无需改名） | — |
+| `blocks[].activation` | 不变：本块激活/引种的原语名 | — |
+
+### 新增字段
+
+- 顶层 `current_epoch_base_features`：当前纪元开篇基线（= 当前纪元首块的引种集）。
+- 顶层 `cumulative_active_features`：历史累计（provenance，只增不减）。
+- `epochs[].epoch_base_features`：该纪元开篇基线 = 首块引种集。
+- `epochs[].epoch_new_features`：该纪元历史首次激活的原语（引种不算新特性）。
+- `epochs[].cumulative_active_features`：截至该纪元末的历史累计（旧语义所在）。
+
+### 为什么变
+
+设计白皮书 §7.6：新纪元默认不继承旧纪元特性，需引种。链级单注册表只增不减
+使「引种」在实现上空转；改为纪元作用域后，跨纪元默认失忆成为核心玩法——
+每个纪元重新选择自己的语言，血缘通过引种提案显式声明（复用 `activation` 字段，
+无需新字段）。详见 `INTRODUCTION_IMPLEMENTATION.md`。
+
+### 新错误码
+
+`UNIMPORTED_FEATURE`：demo/test_cases 引用「更早纪元激活过、本纪元未引种、且不在
+本块 activation 中」的原语；消息含旧纪元号与特性名（如 `feature '-' belongs to
+epoch 0 and has not been inoculated in the current epoch (epoch 1); ...`）。
+`DUPLICATE_FEATURE` 语义收窄为「本纪元已激活」；跨纪元重新激活为合法引种。
 
 ---
 

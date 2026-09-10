@@ -1,12 +1,13 @@
 """区块完整合法性校验器，签名校验为第 0 步前置检查。
 
-校验流水线（8 步）：
+校验流水线（8 步，9 个检查）：
 0. ECDSA 签名校验
 1. 结构与父区块/高度检查
 2. 创世内核兼容性检查
 3. PoI mock token 校验
 4. demo/test_cases 解析校验
-5. 特性激活校验（activation 必须来自预置池、不得与已激活特性重复）
+5. 特性激活校验（纪元作用域：activation 须来自预置池、不得与本纪元已激活
+   特性重复；引用更早纪元已激活但本纪元未引种的原语 -> UNIMPORTED_FEATURE）
 6. 语言扩展正负测试（证明提案真的改变了语言能力）
 7. UTXO 交易校验
 """
@@ -125,11 +126,12 @@ def _check_sandbox(block: Block, store: ChainStore, checked: list[str], limits: 
     带 activation 的扩展区块跳过本步：其 demo/test_cases 的沙箱运行由
     第 7 步「语言扩展正负测试」用升级后的语言快照承担（负测试还证明
     旧语言下必然失败），这里若再用旧语言运行会误拒。
+    普通区块用「候选所在纪元的生效注册表」（纪元作用域）运行。
     """
     checked.append("sandbox")
     if block.activation:
         return None
-    registry = store.language_registry
+    registry = _epoch_registry_for(store, block.height)
     demo = run_sandbox(block.proposal.demo_code, limits=limits, registry=registry)
     if not demo.ok:
         return _fail("sandbox", "DEMO_RUNTIME_FAILED", demo.error_message or "demo runtime failed", checked)
@@ -153,14 +155,72 @@ def _check_utxo(block: Block, store: ChainStore, checked: list[str]) -> Validati
 
 
 # ---------------------------------------------------------------------------
-# 第 5 步：特性激活校验
+# 第 5 步：特性激活校验（纪元作用域）
 # ---------------------------------------------------------------------------
+def _epoch_registry_for(store: ChainStore, height: int) -> FeatureRegistry:
+    """候选块所在纪元的「已生效注册表」。
+
+    - 候选与当前主链同纪元 -> 直接取纪元层（未到边界，未重置）；
+    - 候选为纪元首块（跨纪元边界）-> 空注册表（新纪元从内核起步，失忆）。
+    """
+    if store.epoch_of_height(height) == store.epoch_of_height(store.height):
+        return store.epoch_registry
+    return FeatureRegistry()
+
+
+def _unimported_name(block: Block, store: ChainStore) -> str | None:
+    """检测「失忆」违规：demo/test_cases 引用了更早纪元激活过、本纪元尚未
+    引种、且不在本块 activation 中的原语名；返回第一个违规名，无则 None。
+
+    判定顺序：内核原语永远可用；非预置池标识符（如绑定名）不构成违规；
+    本块 activation 中的名字是正在引种；本纪元已激活的名字可用；
+    其余历史曾激活过的名字 -> 未引种（UNIMPORTED_FEATURE）。
+    """
+    current_epoch = store.epoch_of_height(block.height)
+    epoch_active = _epoch_registry_for(store, block.height).snapshot()
+    ever_active = store.ever_active_features()
+    if not ever_active:
+        return None
+    sources = [block.proposal.demo_code] + [case.program for case in block.proposal.test_cases]
+    for source in sources:
+        for name in _code_tokens(source):
+            if name in KERNEL_PRIMITIVES:
+                continue
+            if spec_of(name) is None:
+                continue  # 非预置池标识符：可能是绑定名，交由沙箱阶段处理
+            if name in block.activation:
+                continue  # 本块正在激活/引种
+            if name in epoch_active:
+                continue  # 本纪元已可用
+            if name in ever_active:
+                return name  # 曾激活过但本纪元未引种 -> 失忆
+    return None
+
+
 def _check_activation(block: Block, store: ChainStore, checked: list[str]) -> ValidationResult | None:
-    """activation 中的每个原语名必须来自预置池，且不得与当前链已激活特性重复。"""
+    """activation 校验（纪元作用域）。
+
+    - 名字须来自预置池、不得与创世内核冲突（不变）；
+    - 同纪元重复激活 -> DUPLICATE_FEATURE（跨纪元重新激活为合法引种，不再拒绝）；
+    - demo/test_cases 引用了「更早纪元激活过、本纪元未引种、且不在本块
+      activation」的原语 -> UNIMPORTED_FEATURE（失忆语义，语义化报错）；
+    - 普通区块（无 activation）同样执行上述未引种检查。
+    """
     checked.append("activation")
+    unimported = _unimported_name(block, store)
+    if unimported is not None:
+        first_epoch = store.first_activation_epoch(unimported)
+        current_epoch = store.epoch_of_height(block.height)
+        origin = f"epoch {first_epoch}" if first_epoch is not None else "an earlier epoch"
+        return _fail(
+            "activation", "UNIMPORTED_FEATURE",
+            f"feature {unimported!r} belongs to {origin} and has not been inoculated "
+            f"in the current epoch (epoch {current_epoch}); add it to activation to inoculate",
+            checked,
+        )
     if not block.activation:
         return None  # 普通区块：不改变语言能力，跳过后续特性校验
-    active = store.language_registry.snapshot()
+    active = _epoch_registry_for(store, block.height).snapshot()
     for name in block.activation:
         if name in KERNEL_PRIMITIVES:
             return _fail(
@@ -175,7 +235,7 @@ def _check_activation(block: Block, store: ChainStore, checked: list[str]) -> Va
         if name in active:
             return _fail(
                 "activation", "DUPLICATE_FEATURE",
-                f"feature {name!r} is already active on the main chain", checked,
+                f"feature {name!r} is already active in the current epoch", checked,
             )
     return None
 
@@ -195,8 +255,12 @@ def _code_tokens(source: str) -> set[str]:
 
 
 def _registry_with(store: ChainStore, block: Block) -> FeatureRegistry | None:
-    """构造「链级已激活 + 本块 activation」的临时注册表；异常返回 None。"""
-    specs = list(store.language_registry.all_specs())
+    """构造「候选纪元已生效 + 本块 activation」的临时注册表；异常返回 None。
+
+    基准 = 纪元作用域（同纪元取纪元层；跨纪元首块为空），
+    叠加本块 activation 后用于正测试。
+    """
+    specs = list(_epoch_registry_for(store, block.height).all_specs())
     for name in block.activation:
         spec = spec_of(name)
         if spec is None:
@@ -210,11 +274,12 @@ def _check_language_evolution(
 ) -> ValidationResult | None:
     """正负双重测试：证明激活这些原语后 demo/test_cases 才可能通过。
 
-    正测试：用（链级已激活 + 本块 activation）的快照运行 demo 与全部 test_cases，
+    正测试：用（候选纪元已生效 + 本块 activation）的快照运行 demo 与全部 test_cases，
             必须全部通过；
-    负测试：用（链级已激活、不含本块 activation）的快照运行同一 demo，必须失败；
+    负测试：用（候选纪元已生效、不含本块 activation）的快照运行同一 demo，必须失败；
     附加检查：demo 词法必须包含本块 activation 中的至少一个原语名，
             防止用与提案无关的代码糊弄负测试。
+    作用域为纪元内：跨纪元默认失忆，引种提案的负测试基准 = 新纪元基线（空）。
     """
     checked.append("language_evolution")
     if not block.activation:
@@ -251,8 +316,8 @@ def _check_language_evolution(
                 f"test case {index} expected {case.expected!r}, got {result.value!r}", checked,
             )
 
-    # 负测试：不含本块 activation 的语言快照，同一 demo 必须失败。
-    negative = run_sandbox(demo, limits=limits, registry=store.language_registry)
+    # 负测试：不含本块 activation 的【候选纪元生效】注册表，同一 demo 必须失败。
+    negative = run_sandbox(demo, limits=limits, registry=_epoch_registry_for(store, block.height))
     if negative.ok:
         return _fail(
             "language_evolution", "NEGATIVE_TEST_PASSED",

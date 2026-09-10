@@ -162,10 +162,74 @@
   纪元摘要共存 → 提交「减法扩展」提案通过 9 检查 → 重启（不加 --fresh）激活状态与
   语言快照仍在；旧 chain-v1 存档被保留为 `.bak-chain-v1`。
 
+## v0.3 · 阶段 D（纪元作用域语言（失忆）+ 引种提案）— ⚠️ BREAKING（字段值语义变更）
+
+> 背景：阶段 C 的 `language_registry` 是链级单一注册表、只增不减，特性一旦激活
+> 就永久继承——与白皮书 §7.6「新纪元默认不继承旧纪元特性，需引种」矛盾，
+> 「引种」在实现上空转。本阶段把语言作用域改为**纪元内有效**：跨纪元默认失忆
+> （核心玩法），引种 = 在更早纪元已出现过、本纪元重新激活的提案。
+
+### 核心机制
+
+- `chain_store.py`：两层注册表——
+  - **历史层** `language_registry`（provenance，只增不减）：判定「引种 vs 新特性」，
+    对外 `cumulative_active_features`/`ever_active_features()`；
+  - **纪元层** `epoch_registry`（新增）：当前纪元已激活集，纪元首块
+    （`height % 100 == 0` 且非创世）重置为空；`epoch_active_features()`；
+  - `append_main`：历史层已有 → 引种（**不抛** already registered，否则含引种块
+    存档无法重放）；历史层没有 → 新特性注册进历史层；纪元层照常累积；
+    `_language_snapshots[height]` 记录**纪元作用域**快照。
+  - 新增只读查询：`epoch_active_features()`、`ever_active_features()`、
+    `epoch_of_height()`、`first_activation_epoch()`；`language_snapshot_at`/
+    `current_language_snapshot` 语义升级为纪元作用域。
+- `block_validator.py`：四处基准注册表从链级换成纪元作用域（`_epoch_registry_for`：
+  同纪元取纪元层、跨纪元首块为空）——`_check_activation`、`_check_sandbox`（普通区块）、
+  `_registry_with`（正测试）、负测试基准；错误码：`DUPLICATE_FEATURE` 收窄为
+  「本纪元已激活」（消息 "is already active in the current epoch"），
+  **新增 `UNIMPORTED_FEATURE`**（demo/test_cases 引用更早纪元激活过、本纪元未引种、
+  且不在本块 activation 中的原语；消息形如 `feature '-' belongs to epoch 0 and has
+  not been inoculated in the current epoch (epoch 1); add it to activation to inoculate`）。
+- `epoch_manager.py`：`EpochSnapshot.active_features` 值语义由「自创世累计」改为
+  「该纪元内有效」；新增 `epoch_base_features`（首块引种集）、`epoch_new_features`
+  （本纪元历史首次）、`cumulative_active_features`（保留旧语义）；`scan_chain`
+  按纪元重放累积四元组。
+- `server.py`：只追加字段——顶层 `current_epoch_base_features`、`cumulative_active_features`；
+  `epochs[]` 追加 `epoch_base_features`/`epoch_new_features`/`cumulative_active_features`；
+  `current_active_features` 与 `epochs[].active_features` 值语义变更并标注
+  `@deprecated`（旧语义由累计字段承接）。
+- `FORMAT_VERSION` 保持 `chain-v2`：不新增/修改 Block 字段，未动 canonical_bytes；
+  引种 provenance 从历史层推导，不引入链上引种记录字段；旧存档重放不变严。
+
+### 文档
+
+- 白皮书 §7.6 新增 `7.6.1 引种提案（Inoculation Proposal）操作说明`（失忆原因、
+  引种怎么提、依赖/顺序、纪元开篇引种玩法、与摘要/大断层的关系）。
+- 新增 `INTRODUCTION_IMPLEMENTATION.md`（两层注册表、作用域校验、错误码表、已知限制）。
+- 更新 `EVOLUTION_IMPLEMENTATION.md`（顶部标注阶段 D 修订 + 第 4 节「作用域与引种」）、
+  `API_SPEC.md`（新增「v0.3 阶段 D 契约变更」一节）、`使用说明.md`。
+- `ARCHIVE_FILE_MANIFEST.md`、`REFERENCE_DOCS_INDEX.md` 登记新文件。
+
+### 测试
+
+- 新增 `tests/test_epoch_scope.py` 10 项：跨纪元失忆（`UNIMPORTED_FEATURE`）、
+  引种成功、同纪元重复拒绝、跨纪元再引种合法、重放一致性（save→load+rebuild）、
+  分类正确（base/new/cumulative）、语义化报错消息、API 契约字段、边界 99/100/101、
+  预沉积链回归（普通内核块不误拒）。
+
+### 验证结果
+
+- 全量回归：`python -m unittest discover -s tests` → **120 项全部通过，失败 0**
+  （110 原有 + 10 新增；既有测试无一改动，语义变更经评估不触碰既有断言）。
+- 字节码检查：`python -m compileall -q .` 退出码 0。
+- 手工验证：`--fresh` 启动 → 提交激活 `-` 提案 → 推进链跨过 200 边界 →
+  提交使用 `-` 的普通提案被 `UNIMPORTED_FEATURE` 拒绝 → 带 `activation=["-"]`
+  的引种提案通过；`/chain-state` 新字段齐全、旧字段语义符合文档。
+
 ## 尚未实现（沿用 v0.2 清单，本阶段未触碰）
 
-- 真实 LLM 纪元摘要（当前为 mock-rule-v1 规则模板）；引种提案；大断层事件；
+- 真实 LLM 纪元摘要（当前为 mock-rule-v1 规则模板）；大断层事件；
 - P2P 网络、真实 tokenizer、真实 LLM；
 - 增量归档、加密存档、校验和文件、密钥托管；
 - **语法级语言扩展**（本阶段只做原语级注册，parser/AST 不变）；
+- 同纪元内「同一原语多次引种不同实现」（单一实现池 BUILTIN_POOL）；
 - 任何可交易代币或现实金融功能。

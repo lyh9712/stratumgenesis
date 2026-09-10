@@ -1,8 +1,19 @@
 # StratumGenesis 语言真实演化模块实现说明
 
-> 阶段：v0.3 · 阶段 C（语言演化）
+> 阶段：v0.3 · 阶段 C（语言演化）/ 阶段 D（纪元作用域语言 + 引种）
 > 目的：修复评审指出的最致命缺口——**提案只被记录展示，不改变语言能力**。
 > 本模块让区块上的扩展提案真正改变 NovScript 解释器：特性注册表 + 求值器派发 + 版本化重放 + 正负双重测试。
+
+---
+
+> ## ⚠️ v0.3 阶段 D 语义变更（本文件对阶段 C 的修订）
+> 语言作用域由**链级只增不减**改为**纪元内有效**（失忆 + 引种）：
+> - 每个纪元的语言基线 = 创世内核 + 本纪元已激活原语；纪元翻篇后旧纪元扩展
+>   原语默认失效（失忆），需在本纪元通过 `activation` 引种（Inoculation）。
+> - 注册表分两层：`ChainStore.language_registry`（历史层 provenance，只增不减，
+>   判定引种 vs 新特性）；`ChainStore.epoch_registry`（纪元层，纪元首块重置）。
+> - 校验基准全部改为纪元作用域（详见下文第 4 节"作用域与引种"）。
+> - 详细设计见 `INTRODUCTION_IMPLEMENTATION.md`；API 变更见 `API_SPEC.md`。
 
 ---
 
@@ -48,24 +59,41 @@
 | 2 | kernel_compatibility | 创世内核兼容性检查（不变） |
 | 3 | poi | PoI mock token 校验（不变） |
 | 4 | parse | demo/test_cases 解析校验（不变） |
-| 5 | activation | **新增**：activation 中每个原语必须在 BUILTIN_POOL；不得与当前链已激活特性重复；不得是内核原语（+）；为空则跳过 |
-| 6 | sandbox | 普通区块的基础沙箱运行校验（原第 5 步；带 activation 的区块跳过，交由第 7 步承担） |
-| 7 | language_evolution | **新增**：语言扩展正负测试（见下） |
+| 5 | activation | activation 中每个原语必须在 BUILTIN_POOL；不得与**本纪元**已激活特性重复；不得是内核原语（+）；引用更早纪元已激活但本纪元未引种的原语 → `UNIMPORTED_FEATURE`；为空则跳过 |
+| 6 | sandbox | 普通区块的基础沙箱运行校验（原第 5 步；带 activation 的区块跳过，交由第 7 步承担）。基准注册表 = 候选纪元生效集 |
+| 7 | language_evolution | 语言扩展正负测试（见下） |
 | 8 | utxo | UTXO 交易校验（不变） |
 
 ## 4. 正负测试原理（第 7 步核心）
 
 一次提案必须同时证明「激活后能跑」且「不激活跑不了」，才算真的改变语言：
 
-- **正测试**：用「链级已激活 + 本块 activation」临时注册表运行 `demo_code` 与全部
+- **正测试**：用「候选纪元已生效 + 本块 activation」临时注册表运行 `demo_code` 与全部
   `test_cases`，必须全部通过；
-- **负测试**：用「链级已激活（不含本块 activation）」注册表运行同一 `demo_code`，
+- **负测试**：用「候选纪元已生效（不含本块 activation）」注册表运行同一 `demo_code`，
   **必须失败**（任意错误类型）；
 - **附加检查**：`demo_code` 词法必须包含本块 `activation` 中的至少一个原语名，
   防止用与提案无关的代码糊弄负测试。
 
 三者同时通过 → 该提案确实改变了语言能力；否则拒绝（`FEATURE_NOT_USED` /
 `POSITIVE_DEMO_FAILED` / `NEGATIVE_TEST_PASSED`）。
+
+### 4.1 作用域与引种（v0.3 阶段 D）
+
+「基准注册表」从链级换成**纪元作用域**，失忆语义由此自然产生：
+
+- 同纪元候选：基准 = `store.epoch_registry`（纪元层，尚未重置）；
+- 跨纪元候选（纪元首块）：基准 = 空注册表（新纪元从内核起步）。
+- 四处基准点：`_check_activation`（激活/引种合法性 + `UNIMPORTED_FEATURE` 检查）、
+  `_check_sandbox`（普通区块）、`_registry_with`（正测试）、负测试基准。
+
+错误码（保留既有码名、收窄语义；新增两个）：
+- `KERNEL_FEATURE_CONFLICT`：名字在内核原语集；
+- `UNKNOWN_FEATURE`：名字不在 `BUILTIN_POOL`；
+- `DUPLICATE_FEATURE`：**本纪元**已激活（跨纪元重新激活 = 合法引种，不再拒绝）；
+- `UNIMPORTED_FEATURE`（新增）：demo/test_cases 引用更早纪元激活过、本纪元未引种、
+  且不在本块 `activation` 中的原语；消息含旧纪元号与特性名；
+- `FEATURE_NOT_USED`：demo 未引用本块 activation 中任何原语（防无关代码糊弄负测试）。
 
 ## 5. 源码变更清单
 

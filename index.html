@@ -305,6 +305,138 @@ main{flex:1;display:flex;overflow:hidden;position:relative}
 }
 #sb-output .err{color:#d89a86}
 #sb-output .meta{color:var(--faint);font-size:11px}
+#sb-output .out{color:#dcc08e}
+
+/* ==========================================================================
+   v0.3 并行线 A：语言地层可视化（全部为新增 id / class，不改动任何既有样式）
+   数据全部来自 GET /chain-state；增强字段缺失时由 blocks[] 自行推导。
+   ========================================================================== */
+
+/* --- 顶部状态栏 · 语言版本 --- */
+#lang-status{margin-top:5px;font-size:11px;color:var(--muted);letter-spacing:.5px;text-align:right}
+#lang-status .lang-num{color:var(--amber);font-weight:700}
+#lang-toggle{margin-left:6px;background:none;border:none;padding:0;color:#dcc08e;font-size:11px;cursor:pointer;border-bottom:1px dotted #dcc08e}
+#lang-memory-loss{font-size:11px;margin-top:2px;color:var(--faint)}
+#lang-memory-loss.loss{color:#d9a05b}
+#lang-detail{
+  display:none;margin-top:6px;margin-left:auto;max-width:340px;text-align:left;
+  font-size:11px;line-height:1.8;color:var(--faint);
+}
+#lang-detail.open{display:block}
+.lang-chip{
+  display:inline-block;margin:2px 4px 2px 0;padding:1px 7px;border-radius:9px;cursor:pointer;
+  border:1px solid rgba(200,162,104,.4);background:rgba(30,24,16,.6);color:#dcc08e;
+  font-family:Consolas,Menlo,monospace;font-size:11px;
+}
+.lang-chip:hover{border-color:var(--amber);color:var(--amber)}
+
+/* --- 纪元开篇带（核心叙事） --- */
+.epoch-open{
+  position:relative;margin:6px auto 16px;width:min(860px,100%);
+  border:1px solid rgba(217,154,69,.45);border-radius:7px;padding:9px 14px 10px;
+  background:linear-gradient(90deg,rgba(217,154,69,.20),rgba(30,24,16,.55) 42%,rgba(18,13,8,.62));
+  box-shadow:inset 0 0 18px rgba(217,154,69,.12);
+  font-size:12px;line-height:1.7;color:#e8d9b8;
+  opacity:0;animation:settle .55s ease forwards;
+}
+.epoch-open::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:7px 0 0 7px;
+  background:linear-gradient(180deg,#f0c37a,#b5752f);
+}
+.epoch-open .eo-title{font-size:12px;letter-spacing:2px;color:#f0c37a;font-weight:600}
+.epoch-open .eo-title b{color:#f7d79a}
+.epoch-open .eo-line{margin-top:3px}
+.epoch-open .eo-loss{color:#d9a05b}
+.epoch-open .eo-names{color:#e8cf9f;font-family:Consolas,Menlo,monospace}
+.epoch-open .eo-meta{font-size:10px;color:var(--faint);margin-top:4px}
+.epoch-open.archived{filter:saturate(.5) brightness(.8);opacity:.72}
+.epoch-open.archived .eo-title{color:#c8a268}
+
+/* --- 语言地层侧栏 --- */
+#langmap{
+  position:fixed;right:0;top:0;bottom:0;width:348px;z-index:70;padding:22px;overflow-y:auto;
+  background:#0f0c09;border-left:1px solid var(--line);transform:translateX(100%);transition:transform .32s;
+}
+#langmap.open{transform:none}
+#langmap h2{margin:0 0 4px;font-size:15px;letter-spacing:2px;color:#f0e4cf}
+#langmap .sub{font-size:11px;color:var(--faint);margin-bottom:14px}
+#langmap-close{position:sticky;top:0;float:right;background:none;border:none;color:var(--faint);font-size:18px;cursor:pointer}
+.lang-row{
+  border:1px solid var(--line);border-radius:6px;background:#16120c;
+  padding:9px 10px;margin-bottom:8px;cursor:pointer;
+}
+.lang-row:hover{border-color:var(--amber2)}
+.lang-row .lr-head{display:flex;align-items:baseline;gap:8px;font-size:12px}
+.lang-row .lr-name{color:var(--amber);font-family:Consolas,Menlo,monospace;font-weight:700;font-size:13px}
+.lang-row .lr-desc{color:var(--faint);font-size:10px}
+.lang-row .lr-state{margin-left:auto;font-size:10px;color:var(--faint);white-space:nowrap}
+.lang-row .lr-state.on{color:#b9c9a4}
+.lang-bar{height:5px;border-radius:3px;background:rgba(233,221,201,.10);margin:6px 0 4px;overflow:hidden}
+.lang-bar i{display:block;height:100%;background:linear-gradient(90deg,#b5752f,#f0c37a)}
+.lang-row .lr-meta{font-size:10px;color:var(--faint)}
+.lang-cells{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.lang-cell{
+  font-size:10px;padding:1px 7px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line);background:#120f0a;color:var(--faint);
+}
+.lang-cell.on{color:#1a1108;font-weight:700;border-color:transparent;background:linear-gradient(180deg,#e6b064,#b5752f)}
+.lang-cell.cur{box-shadow:0 0 0 1px rgba(240,195,122,.5)}
+.lang-cell:hover{border-color:var(--amber)}
+#langmap-detail{
+  border-top:1px dashed rgba(200,162,104,.25);margin-top:12px;padding-top:10px;
+  font-size:11px;line-height:1.85;color:var(--muted);
+}
+#langmap-detail h4{margin:9px 0 2px;font-size:11px;letter-spacing:1px;color:#f0c37a}
+#langmap-detail .kv{color:#e8cf9f}
+#langmap-detail .warn{color:#d9a05b}
+#langmap-detail .empty{color:var(--faint)}
+#langmap-detail .lang-fill{
+  margin-top:4px;padding:3px 10px;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;
+  background:linear-gradient(180deg,#d99a45,#a96824);color:#1a1108;
+}
+#langmap-summary .lang-num{color:var(--amber);font-weight:700}
+.lang-block{line-height:1.9}
+.lang-block .lang-sub{color:var(--faint);font-size:11px;margin-top:5px}
+.lang-block .lang-feats{margin-top:3px}
+.lang-act{border-left:3px solid var(--amber2, #c8a268);padding:1px 0 1px 8px;margin:2px 0}
+.lang-act b{color:#f7d79a;font-family:Consolas,Menlo,monospace}
+.lang-act.revive{border-left-color:#7f9bb5}
+.lang-act.revive b{color:#bfd4e6}
+.lang-act.new{border-left-color:#e0b061}
+.lang-block .empty{color:var(--faint)}
+.layer.lang-hit{outline:2px solid #f0c37a;outline-offset:1px;filter:brightness(1.32) saturate(1.08)}
+.epoch-open .empty{color:var(--faint)}
+.epoch-open.lang-hit{outline:2px solid #f0c37a;outline-offset:2px;filter:brightness(1.25)}
+
+/* --- 沙箱失忆提示 --- */
+.sb-revive{
+  margin-top:9px;border:1px solid rgba(217,154,69,.45);border-left:3px solid #d99a45;border-radius:6px;
+  background:rgba(217,154,69,.10);padding:9px 11px;font-size:12px;line-height:1.75;color:#e8d9b8;
+}
+.sb-revive .sb-revive-tag{color:#f0c37a;font-weight:600}
+.sb-revive button{
+  margin-top:7px;padding:5px 12px;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;
+  background:linear-gradient(180deg,#d99a45,#a96824);color:#1a1108;
+}
+.sb-revive .sb-note{font-size:10px;color:var(--faint);margin-top:5px}
+
+/* --- 程序画廊：引种状态与代码预览 --- */
+.work .need{display:inline-block;font-size:10px;margin:4px 0;padding:2px 7px;border-radius:8px}
+.work .need.pending{color:#d9a05b;border:1px solid rgba(217,154,69,.45);background:rgba(217,154,69,.10)}
+.work .need.ok{color:#b9c9a4;border:1px solid rgba(185,201,164,.35);background:rgba(185,201,164,.08)}
+.work .need-fix{background:none;border:none;padding:0;margin-left:4px;cursor:pointer;
+  color:#f0c37a;font-size:10px;border-bottom:1px dotted #f0c37a}
+.work .code{
+  margin-top:6px;padding:5px 7px;border:1px solid var(--line);border-radius:4px;background:#120e09;
+  font-family:Consolas,Menlo,monospace;font-size:11px;color:#c8b088;
+  white-space:pre-wrap;word-break:break-all;
+}
+#proposal-form.flash{animation:formflash 1.4s ease}
+@keyframes formflash{
+  0%{box-shadow:0 0 0 0 rgba(240,195,122,0)}
+  30%{box-shadow:0 0 0 3px rgba(240,195,122,.55)}
+  100%{box-shadow:0 0 0 0 rgba(240,195,122,0)}
+}
 </style>
 </head>
 <body>
@@ -320,8 +452,15 @@ main{flex:1;display:flex;overflow:hidden;position:relative}
   <div id="status">
     <div id="status-main">正在连接本地地层……</div>
     <div id="status-sub"></div>
+    <div id="lang-status">
+      <span id="lang-status-text">语言版本加载中……</span>
+      <button id="lang-toggle" type="button">明细</button>
+      <div id="lang-memory-loss"></div>
+      <div id="lang-detail"></div>
+    </div>
   </div>
   <div class="toolbar">
+    <button class="iconbtn" id="langmap-btn">语言地层</button>
     <button class="iconbtn" id="gallery-btn">程序画廊</button>
     <button class="iconbtn" id="drill-exit" style="display:none">退出钻探</button>
   </div>
@@ -338,6 +477,14 @@ main{flex:1;display:flex;overflow:hidden;position:relative}
   <h2>程序画廊</h2>
   <div class="sub">化石层中保存的历史作品 · 点击打开沙箱（真实后端执行）</div>
   <div id="gallery-list"></div>
+</aside>
+<aside id="langmap">
+  <button id="langmap-close" type="button">✕</button>
+  <h2>语言地层</h2>
+  <div class="sub">每个原语的首次激活高度 · 各纪元是否被引种 · 点击原语定位岩层，点击纪元看引种/失忆明细</div>
+  <div id="langmap-summary"></div>
+  <div id="langmap-list"></div>
+  <div id="langmap-detail"></div>
 </aside>
 <div id="modal"><div class="sandbox">
   <div class="head"><h3>NovScript 沙箱</h3><span>真实解释器 · 教学级纯计算隔离</span></div>
@@ -387,19 +534,27 @@ function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").rep
    渲染地层剖面（数据来自 GET /chain-state）
    ============================================================ */
 async function loadChain(){
-  chainState = await api("/chain-state");
+  chainState = normalizeState(await api("/chain-state"));
   renderStrata(chainState);
-  setStatus("地层已同步 · 第 " + (chainState.epochs.length ? chainState.epochs[chainState.epochs.length-1].epoch_number : 0) + " 纪元活跃",
+  renderLangMap(chainState);
+  updateLangStatus(chainState);
+  renderGallery(chainState);
+  setStatus("地层已同步 · 第 " + currentEpochEn(chainState) + " 纪元活跃",
             "休眠分支 " + chainState.sleeping_branches.length + " · 预沉积高度 " + chainState.chain_height, "");
 }
 
 function renderStrata(state){
   strata.innerHTML = "";
+  const curEn = currentEpochEn(state);
   const archivedEpochs = new Set(state.epochs.filter(e=>e.archived).map(e=>e.epoch_number));
+  /* 降级：epochs[] 缺失/未标注归档时，凡早于当前纪元的纪元一律按已归档渲染 */
+  chainEpochNumbers(state).forEach(en=>{ if(en < curEn) archivedEpochs.add(en); });
   const byEpoch = {};
   state.blocks.forEach(b=>{ (byEpoch[b.epoch] = byEpoch[b.epoch] || []).push(b); });
   const epochNums = Object.keys(byEpoch).map(Number).sort((a,b)=>b-a);
   epochNums.forEach(en=>{
+    /* v0.3 并行线 A：每个纪元起始处插入「纪元开篇」带（核心叙事） */
+    strata.appendChild(epochOpenBand(state, en, archivedEpochs.has(en)));
     strata.appendChild(epochTagEl(en, archivedEpochs.has(en), state));
     byEpoch[en].slice().reverse().forEach(b=>{
       const el = layerEl(b);
@@ -419,8 +574,9 @@ function epochTagEl(epoch, archived, state){
   const band = document.createElement("div");
   band.className = "epoch-band" + (archived ? " archived" : "");
   band.id = "epoch-band-" + epoch;
-  const snap = state.epochs.find(e=>e.epoch_number===epoch);
-  const range = snap ? (snap.start_height+"–"+snap.end_height) : "—";
+  const snap = epochSnapshot(state, epoch);
+  const rng = epochRange(state, epoch);   /* 降级：epochs[] 缺失时由 blocks[] 推导区间 */
+  const range = rng.start+"–"+rng.end;
   const tag = document.createElement("span");
   tag.className = "tag";
   if(archived){
@@ -600,6 +756,9 @@ function openDetail(b, el){
     '<div class="field"><div class="k">矿工署名</div><div class="v">'+esc(b.miner_label)+'</div></div>'+
     '<div class="field"><div class="k">特性描述</div><div class="v">'+esc(b.description)+'</div></div>'+
     (b.height===0 ? '<div class="field"><div class="k">创世内核规则</div><div class="v">表达式优先 · 惰性求值 · bind 不可变绑定 · 整数与函数为一等值 · S 表达式语法</div></div>' : "")+
+    /* v0.3 并行线 A：语言版本区（activation + 该高度 language_features） */
+    '<div class="field"><div class="k">语言版本</div><div class="v">'+
+      languageSectionHtml(chainState || normalizeState({blocks:[], epochs:[]}), b)+'</div></div>'+
     '<div class="field"><div class="k">演示代码</div><pre>'+esc(b.demo_code||"")+'</pre></div>'+
     (tests ? '<div class="field"><div class="k">测试用例</div><ul class="tests">'+tests+'</ul></div>' : "")+
     '<button id="detail-run">打开沙箱运行</button>'+
@@ -637,24 +796,27 @@ const GALLERY = [
   {title:"《增量勘探》", author:"地层匠·沧石", desc:"用函数原语向 41 之上推进一步。", code:"(bind inc (lambda (x) (+ x 1)))\n(inc 41)"},
   {title:"《创世祭文》", author:"古生物志·竺青", desc:"写给创世内核的加法祭文。", code:";; 献给 NovScript 创世内核\n(+ 20 22)"},
   {title:"《断层测绘》", author:"矿脉测绘·栖岩", desc:"同一数值的两次叠加，测绘自对称地层。", code:"((lambda (x) (+ x x)) 21)"},
+  /* v0.3 并行线 A 新增：使用扩展原语的真实作品。needs = 需要在本纪元已引种的原语；
+     未引种时画廊显示「需引种」而不给假结果；已引种则打开沙箱即真实执行 /eval-novscript。 */
+  {title:"《减法试掘》", author:"沉积者·阿砚", desc:"用减法原语向下试掘七层：(- 10 3)。", code:"(- 10 3)", needs:["-"], verify:true},
+  {title:"《乘法层积》", author:"地层匠·沧石", desc:"六乘七，一次成层的乘法沉积：(* 6 7)。", code:"(* 6 7)", needs:["*"], verify:true},
+  {title:"《取头考古》", author:"古生物志·竺青", desc:"先构造列表再取其头，标记化石最上一层：(head (list 7 8 9))。", code:"(head (list 7 8 9))", needs:["list","head"], verify:true},
+  {title:"《长度测绘》", author:"矿脉测绘·栖岩", desc:"测绘列表地层的厚度：(length (list 1 2 3))。", code:"(length (list 1 2 3))", needs:["list","length"], verify:true},
+  {title:"《条件断层》", author:"断层观测·砚青", desc:"用小与分支判断断层走向：(if (lt 1 2) 7 8)。", code:"(if (lt 1 2) 7 8)", needs:["lt","if"], verify:true},
 ];
 document.getElementById("gallery-btn").addEventListener("click", ()=>gallery.classList.toggle("open"));
-GALLERY.forEach(w=>{
-  const card = document.createElement("div");
-  card.className = "work";
-  card.innerHTML = '<div class="t">'+w.title+'</div><div class="a">'+w.author+'</div><div class="d">'+w.desc+'</div><span class="open">打开沙箱</span>';
-  card.addEventListener("click", ()=>openSandbox(w.code, w.title));
-  document.getElementById("gallery-list").appendChild(card);
-});
+/* 画廊内容在 loadChain() 内由 renderGallery(chainState) 渲染（含「需引种」状态） */
 
 /* ============================================================
    沙箱弹窗：POST /eval-novscript 调用真实解释器
    ============================================================ */
-function openSandbox(code, title){
+function openSandbox(code, title, autoRun){
   sbCode.value = code || "";
   sbOutput.innerHTML = "";
   modal.classList.add("open");
   document.querySelector(".sandbox .head span").textContent = title || "沙箱";
+  /* v0.3 并行线 A：画廊中需要真实结果的作品，打开即真实执行（绝不预置结果） */
+  if(autoRun) document.getElementById("sb-run").click();
 }
 modal.addEventListener("click", (e)=>{ if(e.target===modal) modal.classList.remove("open"); });
 
@@ -669,11 +831,562 @@ document.getElementById("sb-run").addEventListener("click", async ()=>{
       line("模拟执行步数 " + resp.steps + " · 真实沙箱返回", "meta");
     }else{
       line("错误：" + esc(resp.error_type || "未知错误") + " · " + esc(resp.error_message || ""), "err");
+      /* v0.3 并行线 A：未引种导致的错误，额外给一句人话提示 + 可点击的提案示例 */
+      const hint = buildUnimportedHint(resp);
+      if(hint) sbOutput.appendChild(hint);
     }
   }catch(err){
     line("无法连接本地服务：" + esc(String(err)), "err");
   }
 });
+
+/* ==========================================================================
+   v0.3 并行线 A · 语言地层
+   --------------------------------------------------------------------------
+   展示「语言会演化、每 100 高度会失忆」这一核心叙事。
+   权威数据 = GET /chain-state 的 blocks[].activation 与 blocks[].language_features；
+   epochs[] / 顶层聚合字段为增强数据，缺失或为空一律就地推导，不报错、不白屏。
+   本模块只新增函数与 DOM，不触碰任何既有 id / class。
+   ========================================================================== */
+
+/* 预置池原语（与后端 novscript/registry.py BUILTIN_POOL 对应，仅用于展示与提案示例） */
+const PRIMITIVE_POOL = {
+  "-":     {desc:"整数减法 (- a b)",   kw:"减法", demo:"(- 10 3)"},
+  "*":     {desc:"整数乘法 (* a b)",   kw:"乘法", demo:"(* 6 7)"},
+  "//":    {desc:"整数整除 (// a b)",  kw:"整除", demo:"(// 7 2)"},
+  "%":     {desc:"整数取模 (% a b)",   kw:"取模", demo:"(% 7 3)"},
+  "eq":    {desc:"相等判定 (eq a b)",  kw:"",     demo:"(eq 1 1)"},
+  "lt":    {desc:"小于判定 (lt a b)",  kw:"条件", demo:"(lt 1 2)"},
+  "gt":    {desc:"大于判定 (gt a b)",  kw:"",     demo:"(gt 2 1)"},
+  "if":    {desc:"条件分支 (if c a b)",kw:"条件", demo:"(if (lt 1 2) 7 8)"},
+  "list":  {desc:"列表构造 (list …)",  kw:"列表", demo:"(list 7 8 9)"},
+  "cons":  {desc:"放入对 (cons x lst)",kw:"cons", demo:"(cons 9 (list 1 2))"},
+  "head":  {desc:"取列表头",           kw:"取头", demo:"(head (list 7 8 9))"},
+  "tail":  {desc:"取列表尾",           kw:"取尾", demo:"(tail (list 1 2 3))"},
+  "nil?":  {desc:"空表判定 (nil? x)",  kw:"",     demo:"(nil? (list))"},
+  "length":{desc:"列表长度",           kw:"长度", demo:"(length (list 1 2 3))"},
+  "echo":  {desc:"输出到缓冲区",       kw:"输出", demo:"(echo 1 2 3)"},
+};
+const PRIMITIVE_ORDER = Object.keys(PRIMITIVE_POOL);
+
+function firstArr(value){ return Array.isArray(value) ? value.slice() : null; }
+
+/* 链状态归一化：任何字段缺失都退化为空数组 / 由高度推导，保证页面不白屏 */
+function normalizeState(raw){
+  const state = raw || {};
+  state.blocks = Array.isArray(state.blocks) ? state.blocks : [];
+  state.epochs = Array.isArray(state.epochs) ? state.epochs : [];
+  state.miners = Array.isArray(state.miners) ? state.miners : [];
+  state.sleeping_branches = Array.isArray(state.sleeping_branches) ? state.sleeping_branches : [];
+  state.epoch_blocks = Array.isArray(state.epoch_blocks) ? state.epoch_blocks : [];
+  state.summary_chain = Array.isArray(state.summary_chain) ? state.summary_chain : [];
+  state.blocks.forEach(b=>{
+    b.activation = Array.isArray(b.activation) ? b.activation : [];
+    if(typeof b.epoch !== "number") b.epoch = Math.floor(b.height/100);   // 降级：按高度推导纪元
+  });
+  if(typeof state.chain_height !== "number"){
+    state.chain_height = state.blocks.reduce((m,b)=>Math.max(m, b.height), 0);
+  }
+  return state;
+}
+
+function tipBlock(state){
+  return state.blocks.reduce((best,b)=>(!best || b.height>best.height) ? b : best, null);
+}
+
+function tipHeight(state){
+  const tip = tipBlock(state);
+  return tip ? tip.height : 0;
+}
+
+/* 链上出现过的全部纪元号（增强字段 epochs[] 与 blocks[].epoch 的并集） */
+function chainEpochNumbers(state){
+  const set = new Set();
+  state.epochs.forEach(e=>{ if(typeof e.epoch_number === "number") set.add(e.epoch_number); });
+  state.blocks.forEach(b=>set.add(b.epoch));
+  return [...set].sort((a,b)=>a-b);
+}
+
+function epochSnapshot(state, en){
+  return state.epochs.find(e=>e.epoch_number === en) || null;
+}
+
+function blocksOfEpoch(state, en){
+  return state.blocks.filter(b=>b.epoch === en).sort((a,b)=>a.height-b.height);
+}
+
+function epochRange(state, en){
+  const snap = epochSnapshot(state, en);
+  if(snap && typeof snap.start_height === "number" && typeof snap.end_height === "number"){
+    return {start: snap.start_height, end: snap.end_height};
+  }
+  const blocks = blocksOfEpoch(state, en);
+  if(blocks.length) return {start: blocks[0].height, end: blocks[blocks.length-1].height};
+  return {start: en*100, end: en*100 + 99};
+}
+
+/* 某高度的可用原语集：优先用权威字段 language_features，缺失时按高度累计 activation 推导 */
+function blockFeatures(state, b){
+  const direct = firstArr(b.language_features);
+  if(direct) return direct;
+  const acc = [];
+  state.blocks.forEach(x=>{
+    if(x.height <= b.height){
+      (Array.isArray(x.activation) ? x.activation : []).forEach(n=>{ if(acc.indexOf(n) < 0) acc.push(n); });
+    }
+  });
+  return acc;
+}
+
+/* 当前纪元已激活原语：current_epoch_active_features → 链顶块快照 → 历史累计字段 → 自行推导 */
+function currentEpochFeatures(state){
+  const direct = firstArr(state.current_epoch_active_features);
+  if(direct) return new Set(direct);
+  const tip = tipBlock(state);
+  if(tip) return new Set(blockFeatures(state, tip));
+  return new Set(firstArr(state.current_active_features) || []);
+}
+
+function currentEpochEn(state){
+  const tip = tipBlock(state);
+  const nums = chainEpochNumbers(state);
+  return tip ? tip.epoch : (nums.length ? nums[nums.length-1] : 0);
+}
+
+/* 上一纪元末尾的可用集（用于判断“失忆”）；第 0 纪元或上一纪元不在链上时返回 null */
+function prevEpochEndSet(state, en){
+  if(en <= 0) return null;
+  const blocks = blocksOfEpoch(state, en-1);
+  if(!blocks.length) return null;
+  return new Set(blockFeatures(state, blocks[blocks.length-1]));
+}
+
+/* 纪元开篇集：优先 epoch_base_features；否则用首块快照减去首块自身新沉积的 activation */
+function deriveBaseSet(state, en, first){
+  if(!first) return new Set();
+  const set = new Set(blockFeatures(state, first));
+  (Array.isArray(first.activation) ? first.activation : []).forEach(n=>set.delete(n));
+  return set;
+}
+
+function epochOpeningInfo(state, en){
+  const snap = epochSnapshot(state, en);
+  const blocks = blocksOfEpoch(state, en);
+  const first = blocks.length ? blocks[0] : null;
+  const act = first ? first.activation : [];
+  const snapBase = snap ? firstArr(snap.epoch_base_features) : null;
+  const base = snapBase ? new Set(snapBase) : deriveBaseSet(state, en, first);
+  const prev = blocks.length ? prevEpochEndSet(state, en) : null;
+  const lost = prev ? [...prev].filter(n=>!base.has(n)) : [];
+  return {
+    epoch: en, first: first, base: base, prev: prev, lost: lost,
+    introduced: act.length ? act.slice() : (snapBase || []),
+    snap: snap, blockCount: blocks.length, range: epochRange(state, en),
+  };
+}
+
+/* 某原语在链上首次被激活的区块（高度最小者） */
+function firstActivationBlock(state, name){
+  let best = null;
+  state.blocks.forEach(b=>{
+    if(b.activation.indexOf(name) >= 0 && (!best || b.height < best.height)) best = b;
+  });
+  return best;
+}
+
+function originEpochOfFeature(state, name){
+  const b = firstActivationBlock(state, name);
+  return b ? b.epoch : null;
+}
+
+/* 按高度聚合的原语时间线：首次激活高度 + 各纪元是否被引种 */
+function featureTimeline(state){
+  const map = new Map();
+  const touch = (name)=>{
+    if(!map.has(name)) map.set(name, {name: name, firstHeight: null, firstEpoch: null, epochs: new Set(), hits: []});
+    return map.get(name);
+  };
+  PRIMITIVE_ORDER.forEach(touch);
+  state.blocks.forEach(b=>{
+    b.activation.forEach(n=>{
+      const entry = touch(n);
+      entry.hits.push(b.height);
+      entry.epochs.add(b.epoch);
+      if(entry.firstHeight === null || b.height < entry.firstHeight){
+        entry.firstHeight = b.height;
+        entry.firstEpoch = b.epoch;
+      }
+    });
+  });
+  /* 兜底：只在 language_features 里出现过的名字也纳入视图 */
+  const seen = [];
+  state.blocks.forEach(b=>{
+    blockFeatures(state, b).forEach(n=>{ if(seen.indexOf(n) < 0){ seen.push(n); touch(n); } });
+  });
+  return map;
+}
+
+function orderFeatures(names){
+  const rest = names.filter(n=>PRIMITIVE_ORDER.indexOf(n) < 0).sort();
+  return PRIMITIVE_ORDER.filter(n=>names.indexOf(n) >= 0).concat(rest);
+}
+
+/* ---------------------------------------------------------------
+   1) 纪元开篇带（核心叙事）
+   --------------------------------------------------------------- */
+function epochOpenBand(state, en, archived){
+  const band = document.createElement("div");
+  band.className = "epoch-open" + (archived ? " archived" : "");
+  band.id = "epoch-open-" + en;
+  band.dataset.epoch = en;
+  if(archived) band.dataset.willArchive = "1";   // 复用既有“归档抬升”动画
+
+  const info = epochOpeningInfo(state, en);
+  const listOr = (arr, emptyText)=> arr.length
+    ? '<span class="eo-names">'+esc(arr.join("、"))+'</span>'
+    : '<span class="empty">'+esc(emptyText)+'</span>';
+
+  if(en === 0){
+    band.innerHTML =
+      '<div class="eo-title">第 0 纪元开篇 · <b>创世内核</b></div>'+
+      '<div class="eo-line">开篇可用 '+listOr(["+"], "无")+'（NovScript 内核恒定提供加法）；无上一纪元，不存在失忆。</div>'+
+      '<div class="eo-meta">H'+info.range.start+'–H'+info.range.end+' · '+info.blockCount+' 块'+(archived?" · 已归档":"")+'</div>';
+    return band;
+  }
+
+  const line = "第 "+en+" 纪元开篇 · 引种 <b>"+info.introduced.length+"</b> 个特性"+
+    (info.introduced.length ? "："+listOr(info.introduced, "") : "")+
+    " / <span class=\""+(info.lost.length ? "eo-loss" : "")+"\">未引种 "+info.lost.length+" 个（已沉入地下，需引种才能复活）</span>";
+  band.innerHTML =
+    '<div class="eo-title">'+line+'</div>'+
+    (info.lost.length ? '<div class="eo-line">失忆原语：'+listOr(info.lost, "")+'</div>' : "")+
+    '<div class="eo-line">开篇可用原语 '+info.base.size+' 个'+(info.base.size ? "："+listOr([...info.base].sort(), "") : "")+'</div>'+
+    '<div class="eo-meta">H'+info.range.start+'–H'+info.range.end+' · '+info.blockCount+' 块 · 引种数取首块 activation / epoch_base_features，失忆数 = 上一纪元末可用集 − 本纪元开篇集</div>';
+  return band;
+}
+
+/* ---------------------------------------------------------------
+   2) 顶部状态栏 · 语言版本
+   --------------------------------------------------------------- */
+function updateLangStatus(state){
+  const textEl = document.getElementById("lang-status-text");
+  const lossEl = document.getElementById("lang-memory-loss");
+  const detailEl = document.getElementById("lang-detail");
+  if(!textEl) return;
+
+  const cur = currentEpochFeatures(state);
+  const en = currentEpochEn(state);
+  const prev = prevEpochEndSet(state, en);
+  const lost = prev ? [...prev].filter(n=>!cur.has(n)) : [];
+
+  textEl.innerHTML = '语言版本 · 第 '+en+' 纪元：当前纪元已激活 <span class="lang-num">'+cur.size+'</span> 个原语';
+
+  if(lost.length){
+    lossEl.className = "loss";
+    lossEl.textContent = "较上一纪元失去 " + lost.length + " 个原语：" + lost.join("、") + "（未引种，需提交引种提案复活）";
+  }else if(prev && prev.size){
+    lossEl.className = "";
+    lossEl.textContent = "较上一纪元未失去原语";
+  }else{
+    lossEl.className = "";
+    lossEl.textContent = "";
+  }
+
+  const cumulative = firstArr(state.cumulative_active_features);
+  const timeline = featureTimeline(state);
+  const everActive = [...timeline.values()].filter(e=>e.firstHeight !== null).map(e=>e.name);
+  const chips = [...cur].sort().map(n=>{
+    const b = firstActivationBlock(state, n);
+    const title = b ? ("首次激活 H"+b.height+" · 第 "+b.epoch+" 纪元") : "链上无激活记录";
+    return '<span class="lang-chip" data-feature="'+esc(n)+'" title="'+esc(title)+'">'+esc(n)+'</span>';
+  }).join("");
+  detailEl.innerHTML =
+    (cur.size
+      ? '<div>本纪元明细（点击原语定位岩层）：</div><div>'+chips+'</div>'
+      : '<div>当前纪元尚无扩展原语 —— 创世内核只提供 + 加法。提交一个引种提案（如「减法」）即可让语言长大。</div>')+
+    '<div>'+(cumulative ? "历史累计激活 "+cumulative.length+" 个原语" : "历史累计激活 "+everActive.length+" 个原语")+
+    (everActive.length ? "："+esc(everActive.sort().join("、")) : "")+'</div>';
+}
+
+/* ---------------------------------------------------------------
+   3) 语言地层视图（侧栏）
+   --------------------------------------------------------------- */
+function renderLangMap(state){
+  const listEl = document.getElementById("langmap-list");
+  const sumEl = document.getElementById("langmap-summary");
+  const detailEl = document.getElementById("langmap-detail");
+  if(!listEl) return;
+
+  const timeline = featureTimeline(state);
+  const epochs = chainEpochNumbers(state);
+  const cur = currentEpochFeatures(state);
+  const curEn = currentEpochEn(state);
+  const maxHeight = Math.max(1, tipHeight(state));
+  const names = orderFeatures([...timeline.keys()]);
+
+  if(sumEl){
+    sumEl.innerHTML = '<div class="sub" style="margin:0 0 10px">可引种原语 '+names.length+
+      ' 个 · 本纪元已激活 <span class="lang-num">'+cur.size+'</span> 个 · 纪元 '+epochs.length+
+      ' 个 · 柱长 = 首次激活高度 / 链高</div>';
+  }
+
+  listEl.innerHTML = "";
+  names.forEach(n=>{
+    const entry = timeline.get(n);
+    const meta = PRIMITIVE_POOL[n];
+    const row = document.createElement("div");
+    row.className = "lang-row";
+    row.dataset.feature = n;
+    const width = entry.firstHeight === null ? 0 : Math.max(3, Math.round(entry.firstHeight / maxHeight * 100));
+    const metaText = entry.firstHeight === null
+      ? "尚无激活记录（可提交提案引种）"
+      : ("首次激活 H"+entry.firstHeight+" · 第 "+entry.firstEpoch+" 纪元 · 共 "+entry.hits.length+" 次");
+    const cells = epochs.map(en=>{
+      const on = entry.epochs.has(en);
+      const title = on ? ("第 "+en+" 纪元：已引种/激活") : ("第 "+en+" 纪元：未引种");
+      return '<span class="lang-cell'+(on ? " on" : "")+(en === curEn ? " cur" : "")+
+        '" data-epoch="'+en+'" title="'+esc(title)+'">E'+en+'</span>';
+    }).join("");
+    row.innerHTML =
+      '<div class="lr-head"><span class="lr-name">'+esc(n)+'</span>'+
+      '<span class="lr-desc">'+esc(meta ? meta.desc : "链上出现过的原语")+'</span>'+
+      '<span class="lr-state'+(cur.has(n) ? " on" : "")+'">'+(cur.has(n) ? "本纪元已激活" : "未引种")+'</span></div>'+
+      '<div class="lang-bar"><i style="width:'+width+'%"></i></div>'+
+      '<div class="lr-meta">'+esc(metaText)+'</div>'+
+      '<div class="lang-cells"><span class="lr-meta">纪元引种：</span>'+cells+'</div>';
+    listEl.appendChild(row);
+  });
+
+  if(detailEl && !detailEl.dataset.touched){
+    detailEl.innerHTML = '<div class="empty">点击左侧原语 → 定位/高亮对应岩层；点击 E0 / E1 … → 查看该纪元的引种与失忆明细。</div>';
+  }
+}
+
+function showEpochDetail(state, en){
+  const detailEl = document.getElementById("langmap-detail");
+  if(!detailEl) return;
+  detailEl.dataset.touched = "1";
+  const info = epochOpeningInfo(state, en);
+  const snap = info.snap;
+  const blocks = blocksOfEpoch(state, en);
+  const allIntroduced = [];
+  blocks.forEach(b=>b.activation.forEach(n=>{ if(allIntroduced.indexOf(n) < 0) allIntroduced.push(n); }));
+  const snapNew = snap ? firstArr(snap.epoch_new_features) : null;
+  const newHere = snapNew || allIntroduced.filter(n=>originEpochOfFeature(state, n) === en);
+  const cumulative = snap ? firstArr(snap.cumulative_active_features) : null;
+  const listOr = (arr, emptyText)=> arr.length
+    ? '<span class="kv">'+esc(arr.join("、"))+'</span>'
+    : '<span class="empty">'+esc(emptyText)+'</span>';
+
+  detailEl.innerHTML =
+    '<h4>第 '+en+' 纪元 · H'+info.range.start+'–H'+info.range.end+' · '+info.blockCount+' 块'+
+      (snap && snap.archived ? ' · 已归档' : ' · 活跃地表')+'</h4>'+
+    '<div>开篇引种：'+listOr(info.introduced, "无（未引种任何特性）")+'</div>'+
+    '<div>本纪元新沉积（历史首次激活）：'+listOr(newHere, "无")+'</div>'+
+    '<div>本纪元全部引种记录：'+listOr(allIntroduced, "无")+'</div>'+
+    '<div>开篇可用原语 '+info.base.size+' 个：'+listOr([...info.base].sort(), "无（已失忆清空）")+'</div>'+
+    (en > 0
+      ? '<div class="warn">失忆（上一纪元末可用但本纪元开篇未引种）'+info.lost.length+' 个：'+listOr(info.lost, "无")+'</div>'
+      : '<div class="empty">第 0 纪元是创世纪元，无上一纪元可失忆。</div>')+
+    '<div>历史累计激活：'+listOr(cumulative || [...featureTimeline(state).values()].filter(e=>e.firstHeight!==null).map(e=>e.name).sort(), "无")+'</div>';
+
+  /* 同步高亮对应的纪元开篇带 */
+  const band = document.getElementById("epoch-open-" + en);
+  if(band){
+    band.scrollIntoView({behavior:"smooth", block:"center"});
+    band.classList.add("lang-hit");
+    setTimeout(()=>band.classList.remove("lang-hit"), 2600);
+  }
+}
+
+function jumpToFeature(name){
+  const state = chainState;
+  if(!state) return;
+  const b = firstActivationBlock(state, name);
+  const panel = document.getElementById("langmap");
+  const detailEl = document.getElementById("langmap-detail");
+  if(!b){
+    if(detailEl){
+      detailEl.dataset.touched = "1";
+      detailEl.innerHTML = '<h4>'+esc(name)+' · 尚无激活记录</h4>'+
+        '<div>该原语从未在任何岩层被沉积/引种，因此没有对应的岩层可以定位。</div>'+
+        (PRIMITIVE_POOL[name] && PRIMITIVE_POOL[name].kw
+          ? '<div>提交引种提案即可复活：<button class="lang-fill" data-text="'+esc(PRIMITIVE_POOL[name].kw)+'">输入“'+esc(PRIMITIVE_POOL[name].kw)+'”以引种 '+esc(name)+'</button></div>'
+          : '<div class="empty">该原语当前没有对应的中文引种关键词，可尝试直接输入「'+esc(name)+'」。</div>');
+    }
+    return;
+  }
+  if(panel) panel.classList.remove("open");
+  const el = document.querySelector('#strata .layer[data-height="'+b.height+'"]');
+  if(el){
+    el.scrollIntoView({behavior:"smooth", block:"center"});
+    el.classList.add("lang-hit");
+    setTimeout(()=>el.classList.remove("lang-hit"), 2600);
+    openDetail(b, el);
+  }
+}
+
+/* 把提案示例文本填进顶部输入框（不自动提交，由用户点「推演」） */
+function fillProposalExample(text){
+  const inputEl = document.getElementById("proposal-input");
+  const formEl = document.getElementById("proposal-form");
+  const panel = document.getElementById("langmap");
+  if(panel) panel.classList.remove("open");
+  modal.classList.remove("open");
+  if(inputEl){ inputEl.value = text; inputEl.focus(); }
+  if(formEl){
+    formEl.classList.remove("flash");
+    void formEl.offsetWidth;
+    formEl.classList.add("flash");
+    setTimeout(()=>formEl.classList.remove("flash"), 1700);
+  }
+}
+
+/* ---------------------------------------------------------------
+   4) 岩层详情的语言版本区
+   --------------------------------------------------------------- */
+function languageSectionHtml(state, b){
+  const act = Array.isArray(b.activation) ? b.activation : [];
+  const feats = blockFeatures(state, b);
+  let activationHtml;
+  if(!act.length){
+    activationHtml = '<div class="empty">本层不改变语言</div>';
+  }else{
+    activationHtml = act.map(n=>{
+      const origin = originEpochOfFeature(state, n);
+      if(origin === null || origin === b.epoch){
+        return '<div class="lang-act new">本层新沉积：<b>'+esc(n)+'</b></div>';
+      }
+      return '<div class="lang-act revive">本层引种自第 '+origin+' 纪元：<b>'+esc(n)+'</b></div>';
+    }).join("");
+  }
+  const featsHtml = feats.length
+    ? feats.slice().sort().map(n=>'<span class="lang-chip" data-feature="'+esc(n)+'">'+esc(n)+'</span>').join("")
+    : '<div class="empty">无扩展原语（仅内核 + 加法）</div>';
+  return '<div class="lang-block">'+activationHtml+
+    '<div class="lang-sub">本层可用原语 '+feats.length+' 个</div>'+
+    '<div class="lang-feats">'+featsHtml+'</div></div>';
+}
+
+/* ---------------------------------------------------------------
+   5) 沙箱失忆提示
+   --------------------------------------------------------------- */
+const SB_UNIMPORTED_PATTERNS = [
+  /UNIMPORTED_FEATURE[:\s]*([^\s,;，。)）"'`]+)?/i,
+  /not\s+(?:been\s+)?inoculated[^:：]*[：:]\s*([^\s,;，。)）"'`]+)?/i,
+  /未引种[^「"'（(]*[「"'（(]([^」"'）)]+)[」"'）)]/,
+  /未引种[：:\s]*([^\s，。；,;）)]+)/,
+];
+const SB_EPOCH_PATTERNS = [/第\s*(\d+)\s*纪元/, /epoch\s*[=:#]?\s*(\d+)/i];
+
+function parseEpochFromMessage(text){
+  for(const re of SB_EPOCH_PATTERNS){
+    const m = String(text).match(re);
+    if(m && m[1] !== undefined) return Number(m[1]);
+  }
+  return null;
+}
+
+function pickMissingName(raw){
+  if(!raw) return null;
+  const name = String(raw).replace(/^[-'"“”‘’]+/, "").replace(/[-'"“”‘’,;.)）]+$/, "");
+  if(!name) return null;
+  if(PRIMITIVE_POOL[name]) return name;
+  if(chainState && featureTimeline(chainState).has(name)) return name;
+  return null;
+}
+
+function detectUnimported(resp){
+  const type = String(resp.error_type || "");
+  const msg = String(resp.error_message || "");
+  const both = type + " " + msg;
+  for(const re of SB_UNIMPORTED_PATTERNS){
+    const m = both.match(re);
+    if(m) return {strong: true, name: pickMissingName(m[1])};
+  }
+  /* 当前后端对未引种原语报的是 unbound name：仅当名字确实属于预置池才提示，
+     避免把用户自己的拼写错误误报成「失忆」 */
+  const soft = msg.match(/unbound name:\s*([^\s,;]+)/i);
+  if(soft) return {strong: false, name: pickMissingName(soft[1])};
+  return null;
+}
+
+function buildUnimportedHint(resp){
+  const detected = detectUnimported(resp);
+  if(!detected) return null;
+  const name = detected.name;
+  const state = chainState;
+  const fromMsg = parseEpochFromMessage(String(resp.error_message || "") + " " + String(resp.error_type || ""));
+  const origin = (name && state) ? originEpochOfFeature(state, name) : null;
+  const epoch = fromMsg !== null ? fromMsg : origin;
+  const box = document.createElement("div");
+  box.className = "sb-revive";
+  const who = name ? '该原语「'+esc(name)+'」' : "该原语";
+  const where = (epoch === null || epoch === undefined)
+    ? "来自更早的纪元（链上暂无激活记录）"
+    : ("属于第 "+epoch+" 纪元");
+  box.innerHTML = '<span class="sb-revive-tag">失忆提示：</span>'+who+where+
+    '，本纪元尚未引种 —— 提交一个引种提案即可复活。';
+  const meta = name && PRIMITIVE_POOL[name] ? PRIMITIVE_POOL[name] : null;
+  if(name){
+    const text = (meta && meta.kw) ? meta.kw : name;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "sb-fill";
+    btn.dataset.text = text;
+    btn.textContent = "输入“"+text+"”以引种 "+name;
+    box.appendChild(document.createElement("div")).appendChild(btn);
+    if(meta && !meta.kw){
+      const note = document.createElement("div");
+      note.className = "sb-note";
+      note.textContent = "提示：后端预置提案关键词表未覆盖该原语，直接以原语名提交可能不会激活，仅作占位参考。";
+      box.appendChild(note);
+    }
+  }else{
+    const note = document.createElement("div");
+    note.className = "sb-note";
+    note.textContent = "提示：可在顶部输入该原语的引种关键词（如「减法」引种 -）后点击「推演」。";
+    box.appendChild(note);
+  }
+  return box;
+}
+
+/* ---------------------------------------------------------------
+   6) 程序画廊（新增作品：全部走真实 /eval-novscript，不伪造结果）
+   --------------------------------------------------------------- */
+function renderGallery(state){
+  const listEl = document.getElementById("gallery-list");
+  if(!listEl) return;
+  const cur = state ? currentEpochFeatures(state) : new Set();
+  listEl.innerHTML = "";
+  GALLERY.forEach(w=>{
+    const needs = Array.isArray(w.needs) ? w.needs : [];
+    const missing = needs.filter(n=>!cur.has(n));
+    const card = document.createElement("div");
+    card.className = "work";
+    card.dataset.work = w.title;
+    let needHtml = "";
+    if(needs.length){
+      if(missing.length){
+        const first = missing[0];
+        const kw = (PRIMITIVE_POOL[first] && PRIMITIVE_POOL[first].kw) || first;
+        needHtml = '<div class="need pending" data-missing="'+esc(missing.join(","))+'">需引种：'+esc(missing.join("、"))+
+          '<button class="need-fix" type="button" data-text="'+esc(kw)+'">输入“'+esc(kw)+'”</button></div>';
+      }else{
+        needHtml = '<div class="need ok">已可运行：'+esc(needs.join("、"))+' 已在本纪元引种</div>';
+      }
+    }
+    card.innerHTML = '<div class="t">'+esc(w.title)+'</div><div class="a">'+esc(w.author)+'</div>'+
+      '<div class="d">'+esc(w.desc)+'</div>'+needHtml+
+      '<div class="code">'+esc(w.code)+'</div><span class="open">打开沙箱</span>';
+    card.addEventListener("click", (e)=>{
+      const fix = e.target.closest(".need-fix");
+      if(fix){ e.stopPropagation(); fillProposalExample(fix.dataset.text); return; }
+      openSandbox(w.code, w.title, !!w.verify);   // 新增作品：打开即真实执行
+    });
+    listEl.appendChild(card);
+  });
+}
 
 /* ============================================================
    启动：拉取真实链状态并渲染
@@ -681,6 +1394,65 @@ document.getElementById("sb-run").addEventListener("click", async ()=>{
 loadChain().catch(err=>{
   setStatus("无法连接本地服务，请先运行 python server.py", String(err), "bad");
 });
+
+/* ============================================================
+   v0.3 并行线 A：语言地层交互绑定
+   仅绑定新增 DOM（#lang-status / #lang-toggle / #langmap* / .lang-chip / .lang-cell /
+   .lang-fill / .sb-fill），既有交互与动画一律不动。
+   ============================================================ */
+(function bindLanguageUI(){
+  const langmapEl = document.getElementById("langmap");
+  const mapBtn = document.getElementById("langmap-btn");
+  if(mapBtn && langmapEl) mapBtn.addEventListener("click", ()=>langmapEl.classList.toggle("open"));
+  const closeBtn = document.getElementById("langmap-close");
+  if(closeBtn && langmapEl) closeBtn.addEventListener("click", ()=>langmapEl.classList.remove("open"));
+
+  const langToggle = document.getElementById("lang-toggle");
+  const langDetail = document.getElementById("lang-detail");
+  if(langToggle && langDetail){
+    langToggle.addEventListener("click", ()=>{
+      langDetail.classList.toggle("open");
+      langToggle.textContent = langDetail.classList.contains("open") ? "收起明细" : "查看明细";
+    });
+  }
+
+  /* 顶部语言明细里的原语 chip → 定位岩层 */
+  if(langDetail){
+    langDetail.addEventListener("click", (e)=>{
+      const chip = e.target.closest(".lang-chip");
+      if(chip && chip.dataset.feature) jumpToFeature(chip.dataset.feature);
+    });
+  }
+
+  /* 语言地层侧栏：点原语行 → 定位岩层；点纪元格 → 该纪元引种/失忆明细 */
+  const listEl = document.getElementById("langmap-list");
+  if(listEl){
+    listEl.addEventListener("click", (e)=>{
+      if(!chainState) return;
+      const cell = e.target.closest(".lang-cell");
+      if(cell){ showEpochDetail(chainState, Number(cell.dataset.epoch)); return; }
+      const row = e.target.closest(".lang-row");
+      if(row && row.dataset.feature) jumpToFeature(row.dataset.feature);
+    });
+  }
+
+  /* 侧栏详情里的「输入『减法』以引种 -」按钮 */
+  const detailEl = document.getElementById("langmap-detail");
+  if(detailEl){
+    detailEl.addEventListener("click", (e)=>{
+      const btn = e.target.closest(".lang-fill");
+      if(btn && btn.dataset.text) fillProposalExample(btn.dataset.text);
+    });
+  }
+
+  /* 沙箱失忆提示里的「输入『减法』」按钮 */
+  if(sbOutput){
+    sbOutput.addEventListener("click", (e)=>{
+      const btn = e.target.closest(".sb-fill");
+      if(btn && btn.dataset.text) fillProposalExample(btn.dataset.text);
+    });
+  }
+})();
 </script>
 </body>
 </html>

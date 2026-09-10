@@ -150,7 +150,44 @@ def main() -> None:
     for height, count in timeline:
         print(f"    height={height:<4} 语言特性数={count}")
     print(f"\n最终链高={store.height}，已激活特性={sorted(store.language_registry.snapshot())}")
-    print("\n演示完成：提案激活的原语真实进入解释器，历史块按当时语言版本重放，语言在链上真实演化。")
+
+    # 8) 纪元边界：失忆与引种（v0.3 阶段 D）。
+    print("\n[8] 纪元边界：失忆与引种")
+    # 填满纪元 0（height 3..99）；纪元 1 首块默认失忆（扩展原语失效）。
+    for _ in range(99 - store.height):
+        filler = make_extension_block(
+            store, private_key, public_key,
+            feature_name=f"filler-{store.height + 1}", description="普通内核块",
+            activation=(), demo="(+ 1 2)", tests=(TestCase("(+ 1 2)", 3),),
+        )
+        assert validate_block(filler, store).accepted
+        store.append_main(filler)
+    print(f"    填充至 height={store.height}（纪元 0 末，语言特性={sorted(store.language_snapshot_at(99).active_features)}）")
+    # 纪元 1 首块（height=100）不引种直接使用 - -> UNIMPORTED_FEATURE（失忆）。
+    forget = make_extension_block(
+        store, private_key, public_key,
+        feature_name="纪元1直接使用减法", description="未引种直接使用 -（应被拒）",
+        activation=(), demo="(- 10 3)", tests=(TestCase("(- 10 3)", 7),),
+    )
+    result = validate_block(forget, store)
+    print(f"    纪元1首块未引种使用 - -> accepted={result.accepted}, code={result.error_code}")
+    assert not result.accepted and result.stage == "activation" and result.error_code == "UNIMPORTED_FEATURE"
+    # 引种提案（复用 activation 字段）：历史层已有 - -> 引种，纪元 1 恢复可用。
+    inoc = make_extension_block(
+        store, private_key, public_key,
+        feature_name="纪元1引种减法", description="在纪元 1 引种 -",
+        activation=("-",), demo="(- 10 3)", tests=(TestCase("(- 10 3)", 7),),
+    )
+    result = validate_block(inoc, store)
+    print(f"    纪元1首块引种 - -> accepted={result.accepted}")
+    assert result.accepted, result
+    store.append_main(inoc)
+    snapshot100 = store.language_snapshot_at(100)
+    print(f"    纪元1语言快照 height=100 特性={sorted(snapshot100.active_features)}（失忆后经引种恢复）")
+    print(f"    历史层（provenance）仍为 {sorted(store.ever_active_features())}（只增不减）")
+
+    print("\n演示完成：提案激活的原语真实进入解释器，历史块按当时语言版本重放，"
+          "跨纪元默认失忆、血缘通过引种显式声明。")
 
 
 if __name__ == "__main__":

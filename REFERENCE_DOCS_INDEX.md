@@ -28,7 +28,8 @@
 | `EPOCH_BASE_IMPLEMENTATION.md` | 阶段 6 | 纪元基础实现说明：自动编号、边界事件、快照归档标记、暂未实现（摘要/引种/大断层） |
 | `PERSISTENCE_IMPLEMENTATION.md` | v0.3 阶段 A | 磁盘持久化实现说明：存档格式、保存/恢复策略、为何账本与快照重建而非序列化、私钥安全边界 |
 | `EPOCH_SUMMARY_IMPLEMENTATION.md` | v0.3 阶段 B | mock 纪元摘要实现说明：规则模板、加权投票、确定性重放、未来 LLM 替换点、风险提示 |
-| `EVOLUTION_IMPLEMENTATION.md` | v0.3 阶段 C | **语言真实演化**实现说明：特性注册表、求值器派发、语言快照版本化重放、8 步流水线与正负测试原理 |
+| `EVOLUTION_IMPLEMENTATION.md` | v0.3 阶段 C | **语言真实演化**实现说明：特性注册表、求值器派发、语言快照版本化重放、8 步流水线与正负测试原理（阶段 D 修订：作用域改为纪元内） |
+| `INTRODUCTION_IMPLEMENTATION.md` | v0.3 阶段 D | **引种提案**实现说明：两层注册表（历史层/纪元层）、作用域校验、UNIMPORTED_FEATURE 错误码、API 契约变更、已知限制 |
 
 ## 三、接口与使用类（告诉「怎么用」）
 
@@ -60,6 +61,7 @@
 | 沙箱怎么实现/测试 | `StratumGenesis_最小原型工程规范_NovScript沙箱解释器.md` + `NOVSCRIPT_PROTOTYPE_IMPLEMENTATION.md` |
 | 区块/投票/签名/账本/纪元各模块 | 对应模块实现说明（见第二节） |
 | 语言怎么演化（新原语如何上链） | `EVOLUTION_IMPLEMENTATION.md` + `demo_evolution.py` |
+| 失忆与引种（纪元作用域语言） | `INTRODUCTION_IMPLEMENTATION.md` + 白皮书 §7.6.1 |
 | 前后端怎么对接 | `API_SPEC.md` + `使用说明.md` |
 | 怎么演示给别人看 | `DEMO_SCRIPT_v0_2.md` |
 | 有哪些文件 | `ARCHIVE_FILE_MANIFEST.md` |

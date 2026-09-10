@@ -114,6 +114,14 @@ exec python server.py
 Fly.io 可在 `fly.toml` 里让 `internal_port = 28417` 配合 `[[services]]` 转发；
 或在机器本地跑 `cloudflared tunnel`、`ngrok` 之类。**注意：这意味着把无鉴权服务暴露到公网，先读完 §7。**
 
+> #### ⚠️ STRATUM_HOST 风险（由另一条线提供，大总管转交，原文照录）
+>
+> STRATUM_HOST：不要轻易改绑。server.py 默认只监听 127.0.0.1，这是它唯一的安全边界。
+> 设 STRATUM_HOST=0.0.0.0 会让服务对所有网络接口开放，而该服务服务端持有全部矿工私钥并代为签名、
+> 没有任何鉴权与限频——任何能访问到端口的人都可以冒充任意矿工出块、提交任意提案。
+> 仅建议在以下前提下改绑：① 部署在可信内网或容器网络内；② 外层有反向代理做访问控制与限流；
+> ③ 明确是只读/演示用途。风险由部署者自负。
+
 ---
 
 ## 3. Docker：本地或 VPS 自建
@@ -360,6 +368,10 @@ python export_public.py --in data/chain_v1.json --out chain_state.json
 
 页面顶部会出现一条中文横幅，说明当前为只读展馆及如何亲手提案。
 
+> **能力边界（明确）**：只读展馆**不能提案、不能执行 NovScript 沙箱**——它不是「活的服务」，
+> 只是仓库快照 `chain_state.json` 的可视化。任何需要写入（出块、提交提案、运行沙箱）的操作在只读模式下都会被禁用。
+> 想亲手参与共识，请看 §9.4 的两条路。
+
 ### 9.3 发布
 
 1. 仓库 **Settings → Pages → Source: Deploy from a branch → `main` / `/root`**；
@@ -369,6 +381,17 @@ python export_public.py --in data/chain_v1.json --out chain_state.json
 > 需要 HTTP 环境：直接双击 `index.html` 用 `file://` 打开时，浏览器会因 CORS
 > 拒绝 `fetch("chain_state.json")`，页面会退回到「无法连接本地服务」提示。
 > 本地预览请用 `python -m http.server` 后访问 `http://127.0.0.1:8000/`。
+
+### 9.4 想亲手玩？用 Codespaces，或等 Pyodide 版
+
+只读展馆只能看不能动。**想亲手出块、提交提案、跑 NovScript 沙箱**，有两条路：
+
+1. **GitHub Codespaces（推荐，能提案）**：见本仓库 `PUBLISH_CHECKLIST.md` §③，一键起活 hub + 端口转发，
+   能力等同本地 `python server.py`；
+2. **浏览器内 Pyodide 版（另一条线开发中）**：目标是把服务端验证逻辑搬进浏览器，纯前端即可提案与验签，
+   **无需服务器、无需暴露私钥**。上线前请以该线进展为准。
+
+> 一句话：只看演示用 Pages 只读展馆；想参与共识请用 Codespaces，或等 Pyodide 版。
 
 ---
 

@@ -45,9 +45,17 @@ GET http://127.0.0.1:28417/chain-state
     }
   ],
   "epochs": [
-    {"epoch_number": 0, "start_height": 0, "end_height": 99, "block_count": 100, "archived": true},
-    {"epoch_number": 1, "start_height": 100, "end_height": 102, "block_count": 3, "archived": false}
+    {"epoch_number": 0, "start_height": 0, "end_height": 99, "block_count": 100, "archived": true,
+     "summary": {"status": "finalized", "method_label": "mock-rule-v1", "final_text": "本纪元高频主题……",
+                  "winner_candidate_id": "mock-rule-v1:keyword-top", "winner_producer_label": "地层匠·沧石",
+                  "tie_occurred": false,
+                  "candidates": [{"candidate_id": "mock-rule-v1:keyword-top", "text": "……",
+                                   "producer_label": "地层匠·沧石", "weight": 3420}]},
+     "summary_status": "finalized"},
+    {"epoch_number": 1, "start_height": 100, "end_height": 102, "block_count": 3, "archived": false,
+     "summary": null, "summary_status": "pending"}
   ],
+  "summary_chain": [ /* 与已归档纪元的 summary 同构，按纪元顺序排列 */ ],
   "sleeping_branches": [
     {
       "height": 103,
@@ -73,7 +81,8 @@ GET http://127.0.0.1:28417/chain-state
 |---|---|
 | `chain_height` | 主链末端高度 |
 | `blocks` | 主链全部区块（高度升序）；`miner_label`、`miner_pubkey_b64`、`feature_name`、`description`、`demo_code`、`test_cases`、`block_hash_b64` 供前端渲染 |
-| `epochs` | 纪元快照；`archived=true` 表示已归档（前端显示为半透明古岩层） |
+| `epochs` | 纪元快照；`archived=true` 表示已归档（前端显示为半透明古岩层）。v0.3 阶段 B 追加：`summary`（已归档纪元为 finalized 摘要对象，未封口为 null）、`summary_status`（pending/finalized） |
+| `summary_chain` | v0.3 阶段 B 追加：按纪元顺序的已确定摘要数组（与 `epochs[i].summary` 同构，为「大断层事件」预留） |
 | `sleeping_branches` | 休眠/落选区块摘要，含拒绝原因 `reason` |
 | `miners` | 可用矿工身份与链内 UTXO 余额（仅演示查询；余额与投票权重完全隔离） |
 
@@ -232,7 +241,7 @@ python persistence.py export data/chain_v1_export.json
 ```bash
 # 先停止手动启动的 server.py（端口 28417 会被测试占用）
 python -m unittest discover -s tests -v
-python -m compileall -q *.py tests/*.py
+python -m compileall -q .
 ```
 
 测试覆盖：chain-state 结构、合法提案上链、内核冲突进休眠分支、未知矿工拒绝、沙箱执行成功/语法错误/未绑定名称、index.html 可访问。

@@ -164,7 +164,7 @@ python server.py
 python -m unittest discover -s tests -v
 
 # 字节码编译检查
-python -m compileall -q *.py tests/*.py
+python -m compileall -q .
 
 # 运行 HTTP API 测试（会自动占用 28417 端口，先停止手动启动的服务）
 python -m unittest tests.test_http_api -v

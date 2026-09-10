@@ -9,7 +9,8 @@
 自动保存；--fresh 可忽略存档从创世重建。
 
 已知局限（与全局项目一致）：
-1. LLM 摘要未来会有信息衰减与幻觉风险；摘要链仅线性低速增长（本版本无摘要）。
+1. LLM 摘要未来会有信息衰减与幻觉风险；当前为 mock-rule-v1 规则模板确定性摘要
+   （非真实 LLM），摘要链仅线性低速增长。
 2. 共识仅适配小规模仿真网络；这里只是单进程串行处理，无真实网络。
 3. 沙箱是教学级纯计算隔离，不是生产安全容器。
 4. 纯非金融激励存在参与者流失风险。
@@ -261,6 +262,9 @@ def api_chain_state(state: ServerState) -> dict:
             "end_height": snapshot.end_height,
             "block_count": len(snapshot.block_hashes),
             "archived": snapshot.archived,
+            # v0.3 阶段 B 追加：已归档纪元返回 finalized 摘要；未封口纪元为空。
+            "summary": _summary_to_dict(snapshot.summary) if snapshot.summary else None,
+            "summary_status": snapshot.summary_status,
         })
     sleeping = []
     for branch in store.sleeping_branches().values():
@@ -293,6 +297,29 @@ def api_chain_state(state: ServerState) -> dict:
         "sleeping_branches": sleeping,
         "miners": miners,
         "epoch_blocks": EPOCH_BLOCKS,
+        # v0.3 阶段 B 追加：按纪元顺序的已确定摘要链（为「大断层事件」留钩子）。
+        "summary_chain": [_summary_to_dict(item) for item in store.epoch_manager.summary_chain()],
+    }
+
+
+def _summary_to_dict(summary) -> dict:
+    """将已确定摘要转成前端可展示 JSON（追加字段，不改变既有响应结构）。"""
+    return {
+        "status": summary.status,
+        "method_label": summary.method_label,
+        "final_text": summary.final_text,
+        "winner_candidate_id": summary.winner_candidate_id,
+        "winner_producer_label": summary.winner_producer_label,
+        "tie_occurred": summary.tie_occurred,
+        "candidates": [
+            {
+                "candidate_id": candidate.candidate_id,
+                "text": candidate.text,
+                "producer_label": candidate.producer_label,
+                "weight": candidate.weight,
+            }
+            for candidate in summary.candidates
+        ],
     }
 
 

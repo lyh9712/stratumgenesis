@@ -107,7 +107,7 @@ python -m unittest discover -s tests -v
 ```bash
 python demo_epoch.py
 python -m unittest discover -s tests -v
-python -m compileall -q *.py tests/*.py
+python -m compileall -q .
 ```
 
 结果：
@@ -123,13 +123,12 @@ OK
 
 本模块明确不实现：
 
-- LLM 纪元摘要生成；
-- 摘要候选投票和官方摘要选择；
+- 真实 LLM 纪元摘要（v0.3 阶段 B 已实现 mock-rule-v1 规则模板摘要与加权投票，见 EPOCH_SUMMARY_IMPLEMENTATION.md）；
 - 跨纪元引种提案；
 - 大断层事件；
 - 摘要链压缩或摘要替代原始区块；
 - P2P 网络和分布式纪元协调；
-- 磁盘归档和持久化恢复；
+- 磁盘归档和持久化恢复（已由 v0.3 阶段 A persistence.py 实现，属另一模块）；
 - 真实 LLM 或 tokenizer；
 - 可交易代币和现实金融功能。
 

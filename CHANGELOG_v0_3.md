@@ -40,12 +40,40 @@
 ### 验证结果
 
 - 全量回归：`python -m unittest discover -s tests -v` → **80 项全部通过，失败 0**（72 原有 + 8 新增）。
-- 字节码检查：`python -m compileall -q *.py tests/*.py` 通过。
+- 字节码检查：`python -m compileall -q .` 通过。
 - 手工验证：首次启动 102 → `/propose` 后 103 → 停止重启加载存档仍为 103（提案仍在）→ `--fresh` 回到 102；导出 CLI 产出 `chain-v1` 完整副本。
+
+## v0.3 · 阶段 B（mock 纪元摘要：确定性生成 + 加权投票）
+
+### 纪元摘要模块
+
+- 新增 `epoch_summary.py`：
+  - 数据模型 `SummaryCandidate` / `EpochSummary`（候选文本、模板名、生产者、权重、胜者、最终文本、方法标签 `mock-rule-v1`、状态、平票标记）；
+  - 三套确定性规则模板：`keyword-top`（特性关键词词频 Top3）、`contributor-distribution`（贡献者分布）、`first-last-narrative`（首末特性串讲）；
+  - 复用 `weight_calculator.calculate_historical_weights`（仅主链、截止纪元边界）加权投票；平票按模板名排序取首并记录 `tie_occurred`；
+  - 全程 mock：无真实 LLM、无网络；为未来 LLM 接入预留替换点（详见 EPOCH_SUMMARY_IMPLEMENTATION.md §5）。
+- `epoch_manager.py`：`EpochSnapshot` 追加 `summary` / `summary_status` 字段（不删不改既有字段）；`scan_chain` 在边界（height % 100 == 0）确定性 finalize；新增 `_summary_chain` 摘要链（按纪元顺序，为「大断层事件」留钩子）。
+- 与阶段 A 持久化协同：摘要**不序列化进存档**，save→load 由主链重放确定性重建，逐字段一致（新增测试断言）。
+
+### 接口与前端
+
+- `GET /chain-state`：`epochs[i]` 追加 `summary`（已归档纪元 finalized / 未封口 null）与 `summary_status`；顶层追加 `summary_chain`（只追加，不改既有字段名）。
+- `index.html`：已归档纪元标签下新增可折叠摘要卡（原生 `<details>`，展示胜者/最终文本/候选权重/平票标记）；纯追加式，不动既有动画与交互。
+
+### 阶段 A 遗留小修（监督验收发现）
+
+1. `persistence.load_state()` 加载时逐块补验 ECDSA 签名（跳过创世块），仅篡改签名的存档现会被拒绝加载（错误含「签名校验失败」）。
+2. 全部文档编译检查命令统一为 `python -m compileall -q .`（修复 PowerShell 不展开 `*.py` 通配符问题，已实测退出码 0）。
+
+### 验证结果
+
+- 全量回归：`python -m unittest discover -s tests` → **90 项全部通过，失败 0**（80 原有 + 10 新增）。
+- 字节码检查：`python -m compileall -q .` 退出码 0。
+- 手工验证：`--fresh` 启动后 `/chain-state` 纪元 0 含 finalized 摘要（三候选 + 胜者）、纪元 1 为 pending；提案推进主链后纪元 1 仍 pending（跨边界行为正确）；重启（不加 --fresh）摘要字段与重启前一致。
 
 ## 尚未实现（沿用 v0.2 清单，本阶段未触碰）
 
-- 纪元 LLM 摘要 / 摘要投票；引种提案；大断层事件；
+- 真实 LLM 纪元摘要（当前为 mock-rule-v1 规则模板）；引种提案；大断层事件；
 - P2P 网络、真实 tokenizer、真实 LLM；
 - 增量归档、加密存档、校验和文件、密钥托管；
 - 任何可交易代币或现实金融功能。

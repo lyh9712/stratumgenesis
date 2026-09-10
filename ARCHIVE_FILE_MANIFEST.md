@@ -24,7 +24,8 @@
 
 | 文件 | 用途 |
 |---|---|
-| `persistence.py` | v0.3 新增：确定性 JSON 存档/加载/导出（format_version=chain-v1），原子写入、哈希校验、账本与纪元快照重放重建 |
+| `persistence.py` | v0.3 新增：确定性 JSON 存档/加载/导出（format_version=chain-v1），原子写入、哈希+签名校验、账本与纪元快照重放重建 |
+| `epoch_summary.py` | v0.3 阶段 B 新增：mock 纪元摘要——确定性规则模板（keyword-top/contributor-distribution/first-last-narrative）+ 历史贡献加权投票 + 平票确定性回退 |
 | `block_model.py` | 不可变区块数据模型：`Block`/`Proposal`/`PoiRecord`/`TestCase`，SHA256 区块哈希、`canonical_bytes()`、创世块构造 |
 | `mock_tokenizer.py` | PoI mock 标准分词器：确定性词元计数（`mock-tokenizer-v1`），不调用外部模型 |
 | `block_validator.py` | 6 阶段区块合法性校验流水线（签名→结构→内核→PoI→解析→沙箱→UTXO），返回 `ValidationResult` |
@@ -73,7 +74,8 @@
 | `tests/test_epoch.py` | 6 | 纪元编号、构造校验、99/100 边界、归档快照、休眠分支 |
 | `tests/test_http_api.py` | 8 | HTTP API 端到端：chain-state/propose/eval/index.html |
 | `tests/test_persistence.py` | 8 | v0.3 新增：存档 roundtrip 等值、HTTP 一致性、损坏拒绝、--fresh、导出 |
-| **合计** | **80** | 全部通过 |
+| `tests/test_epoch_summary.py` | 10 | v0.3 阶段 B：边界触发、确定性、历史权重、平票回退、finalized 不可变、休眠分支无摘要、chain-state 追加字段、save→load 摘要一致、篡改签名拒绝 |
+| **合计** | **90** | 全部通过 |
 
 ## 五、归档文档（本次新增，均为 Markdown）
 
@@ -86,6 +88,7 @@
 | `REFERENCE_DOCS_INDEX.md` | 全部历史设计文档索引 |
 | `CHANGELOG_v0_3.md` | v0.3 版本变更日志（阶段 A：git 基线 + 磁盘持久化） |
 | `PERSISTENCE_IMPLEMENTATION.md` | v0.3 持久化实现说明：格式、恢复策略、私钥安全边界、已知限制 |
+| `EPOCH_SUMMARY_IMPLEMENTATION.md` | v0.3 阶段 B：mock 纪元摘要实现说明（模板/投票/确定性重放/未来 LLM 替换点/风险提示） |
 
 ## 六、历史设计文档（保留供参考）
 

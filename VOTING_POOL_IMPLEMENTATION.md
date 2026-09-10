@@ -48,7 +48,7 @@ ChainStore：winner 追加主链，losers / tie candidates 保存休眠分支
 ```bash
 python demo_vote_conflict.py
 python -m unittest discover -s tests -v
-python -m compileall -q *.py tests/*.py
+python -m compileall -q .
 ```
 
 观察结果：

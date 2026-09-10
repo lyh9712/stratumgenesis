@@ -64,7 +64,7 @@ Block.transactions 纳入区块 canonical_bytes / SHA-256 哈希
 ```bash
 python demo_utxo.py
 python -m unittest discover -s tests -v
-python -m compileall -q *.py tests/*.py
+python -m compileall -q .
 ```
 
 观察到：

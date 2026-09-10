@@ -55,7 +55,7 @@ ecdsa 0.19.2
 ```bash
 python demo_ecdsa_sign.py
 python -m unittest discover -s tests -v
-python -m compileall -q *.py tests/*.py
+python -m compileall -q .
 ```
 
 ECDSA 测试覆盖：

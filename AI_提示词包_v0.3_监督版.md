@@ -84,10 +84,20 @@
    - `index.html`：在已归档纪元的标签/考古区域以**可折叠摘要卡**展示纪元摘要（纯追加式改动；不得破坏既有地层动画、钻探、详情面板交互）。
 4. 测试：新增 `tests/test_epoch_summary.py`：边界触发时机、确定性（同状态两次运行候选与结果一致）、权重生效、平票回退、finalized 后不再变化、休眠分支不产生摘要、API 字段存在。既有 72+（含 A 新增）全部通过。
 5. 文档：`EPOCH_SUMMARY_IMPLEMENTATION.md`（含未来接真实 LLM 的替换点说明）+ 更新 `API_SPEC.md`、`使用说明.md`、`CHANGELOG`。
+6. **与阶段 A 持久化的协同（监督者于阶段 A 验收后追加）**：`EpochSnapshot` **不在存档中序列化**，加载时由主链重放重建 —— 因此摘要候选与投票结果必须**完全确定性**：`save → load` 后摘要字段（候选列表、得票、胜者、`finalized` 状态、方法标签）必须与保存前逐字段一致，并新增测试断言该等值。**不得**为摘要单独引入第二套序列化或旁路状态（会与主链漂移）。
 
 **禁止**：调用任何真实 LLM/网络；改动既有 API 字段名；改 Block/账本语义；让摘要流程影响上链/投票主逻辑。
 
 **验收**：预沉积 102 块后启动，`/chain-state` 中纪元 0 快照含 finalized 摘要、纪元 1 为 pending；再提交合法提案使高度跨过 200 边界时，纪元 1 自动 finalized；两次 `--fresh` 启动结果逐字节一致。
+
+---
+
+## 附：阶段 A 遗留小修（监督者验收发现，随阶段 B 一并提交即可）
+
+1. **加载时未校验区块签名**：`block_hash` 与签名内容在设计上互斥（区块哈希排除 `signature_bytes`），因此存档中仅篡改签名的数据目前能通过 `load_state`。二选一处理：
+   - 推荐：加载时用既有 `crypto_key.verify_block_signature` 对每个区块验签（成本低），签名不符即拒绝加载；
+   - 或退一步：在 `PERSISTENCE_IMPLEMENTATION.md` §7「已知限制」中如实写明「加载仅校验区块哈希，不重新验签」。
+2. **文档中的编译检查命令在 PowerShell 下不生效**：`python -m compileall -q *.py tests/*.py` 的通配符不会被 PowerShell 展开（Python 收到字面量 `*.py`，静默失败且退出码仍为 0）。请在 `ARCHIVE_v0_2_README.md`、`PERSISTENCE_IMPLEMENTATION.md` 等处以 `python -m compileall -q .` 为准（或在文档中标注该命令应按 cmd 语法执行）。
 
 ---
 

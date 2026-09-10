@@ -164,6 +164,31 @@ main{flex:1;display:flex;overflow:hidden;position:relative}
 .epoch-band.archived .tag{color:var(--faint)}
 .epoch-band.archived .tag b{color:var(--faint)}
 .epoch-band.archived .tag .drill{color:#c8a268;cursor:pointer;border-bottom:1px dotted #c8a268;margin-left:6px}
+/* ===== v0.3 阶段 B：纪元摘要卡（纯追加样式，不影响既有地层/钻探/详情交互） ===== */
+.epoch-summary{
+  display:block;margin:8px 0 2px;border:1px solid rgba(200,162,104,.35);
+  border-radius:8px;overflow:hidden;
+  background:linear-gradient(180deg,rgba(30,24,16,.55),rgba(18,13,8,.65));
+}
+.epoch-summary summary{
+  cursor:pointer;list-style:none;padding:7px 12px;font-size:11px;letter-spacing:1px;
+  color:var(--faint);user-select:none;
+}
+.epoch-summary summary::-webkit-details-marker{display:none}
+.epoch-summary summary::before{content:"▸ ";color:var(--amber)}
+.epoch-summary[open] summary::before{content:"▾ "}
+.epoch-summary summary b{color:#d8b26a}
+.epoch-summary .body{padding:2px 14px 12px;border-top:1px dashed rgba(200,162,104,.25)}
+.epoch-summary .final{
+  font-size:12px;line-height:1.75;color:#e8d9b8;margin:8px 0 4px;
+  border-left:2px solid var(--amber);padding-left:10px;
+}
+.epoch-summary .meta{font-size:10px;color:var(--faint);margin:2px 0 8px}
+.epoch-summary .votes{font-size:11px;color:rgba(232,217,184,.85);margin:0;padding-left:18px}
+.epoch-summary .votes li{margin:3px 0;list-style:none;position:relative}
+.epoch-summary .votes li::before{content:"·";position:absolute;left:-12px;color:var(--amber)}
+.epoch-summary .votes .win{color:#f0c37a}
+.epoch-summary .tie{color:#d9a05b;font-size:10px;margin-top:6px}
 .genesis{
   position:relative;margin:26px auto 0;width:min(860px,100%);min-height:172px;
   border-radius:8px;padding:22px 24px;cursor:pointer;overflow:hidden;
@@ -405,6 +430,29 @@ function epochTagEl(epoch, archived, state){
     tag.innerHTML = "<b>第 "+epoch+" 纪元</b> · "+range+" · 活跃地表";
   }
   band.appendChild(tag);
+  /* v0.3 阶段 B：已归档且摘要已确定的纪元，追加可折叠摘要卡（不影响钻探考古交互） */
+  if(archived && snap && snap.summary && snap.summary.status === "finalized"){
+    const card = document.createElement("details");
+    card.className = "epoch-summary";
+    const head = document.createElement("summary");
+    head.innerHTML = "<b>第 "+epoch+" 纪元摘要</b> · "+esc(snap.summary.method_label)+
+      " · 胜者 "+esc(snap.summary.winner_producer_label || "—");
+    const body = document.createElement("div");
+    body.className = "body";
+    body.innerHTML =
+      '<div class="final">'+esc(snap.summary.final_text || "—")+'</div>'+
+      '<div class="meta">候选 '+snap.summary.candidates.length+' 份 · 平票回退：'+
+      (snap.summary.tie_occurred ? "是" : "否")+'</div>'+
+      '<ul class="votes">'+
+      snap.summary.candidates.map(c=>
+        '<li'+(c.candidate_id===snap.summary.winner_candidate_id ? ' class="win"' : '')+
+        '>'+esc(c.producer_label)+' · '+esc(c.candidate_id)+' · 权重 '+c.weight+
+        '<div>'+esc(c.text)+'</div></li>').join('')+
+      '</ul>';
+    card.appendChild(head);
+    card.appendChild(body);
+    band.appendChild(card);
+  }
   return band;
 }
 

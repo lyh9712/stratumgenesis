@@ -29,6 +29,7 @@ from typing import Any, Iterable
 
 from block_model import Block, PoiRecord, Proposal, TestCase
 from chain_store import ChainStore
+from crypto_key import verify_block_signature
 from utxo_model import Transaction, UTXO
 
 # 存档格式版本：后续演进时递增，旧版本存档将被拒绝加载（需 --fresh 重建）。
@@ -134,6 +135,21 @@ def _block_to_dict(block: Block) -> dict:
         },
         "transactions": [_transaction_to_dict(tx) for tx in block.transactions],
     }
+
+
+def _verify_block_signature(block: Block) -> None:
+    """验签存档区块（创世块无签名，跳过）。
+
+    block_hash 按设计排除 signature_bytes，因此仅篡改签名的存档能通过哈希校验；
+    这里用既有 crypto_key.verify_block_signature 对每块补验 ECDSA 签名，
+    签名不符即判定存档损坏并拒绝加载（阶段 A 遗留小修）。
+    """
+    if block.height == 0 or not block.miner_pubkey or not block.signature_bytes:
+        return
+    if not verify_block_signature(block.miner_pubkey, block.canonical_bytes(), block.signature_bytes):
+        raise PersistenceError(
+            f"存档区块签名校验失败（height={block.height}）：ECDSA 签名与区块内容不符，存档已损坏或被篡改"
+        )
 
 
 def _block_from_dict(data: dict) -> Block:
@@ -280,10 +296,12 @@ def load_state(path: str) -> dict:
         raise PersistenceError(f"存档缺少必要字段：{required}，文件已损坏")
     # 逐区块重建并校验哈希（含创世块与休眠分支区块）。
     for entry in data["blocks"]:
-        _block_from_dict(entry)
+        block = _block_from_dict(entry)
+        _verify_block_signature(block)
     for branch in data["sleeping_branches"]:
         for entry in branch.get("blocks", []):
-            _block_from_dict(entry)
+            block = _block_from_dict(entry)
+            _verify_block_signature(block)
     return data
 
 

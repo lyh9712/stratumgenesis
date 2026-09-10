@@ -1,0 +1,1967 @@
+{
+  "blocks": [
+    {
+      "activation": [],
+      "block_hash_b64": "UlXW4cumPPYb0kNHQNyi2NB6Kg+mNy6grlODMuArvbM=",
+      "demo_code": "1",
+      "description": "S-expression; lazy evaluation; immutable bind; integer and function values; builtin +.",
+      "epoch": 0,
+      "feature_name": "novscript-genesis-kernel",
+      "height": 0,
+      "language_features": [],
+      "miner_label": "创世者",
+      "miner_pubkey_b64": "Z2VuZXNpcw==",
+      "test_cases": [
+        {
+          "expected": 1,
+          "program": "1"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "07qXVurvWJXPZ+wvrkvU1DL5Q2FXDJXiHC57HHddMx4=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 1）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 1,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "xMLI+Ke/eXyNnI5yL6pM/d1HT8QqUn3fJSbCmDQxb14=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 2）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 2,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "IQPFkjp7VdBsRM30AMwB6Gdut7Vl2QnsZTltR1ASINg=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 3）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 3,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "r81DQ1uCgQbZeV6LvPpuKLEbXYdEjcrvTgyazw8/Rq0=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 4）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 4,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "mW5BBpjfB9/899WZt6tPgKGlpLyv9RvwaLEGTGnr+DI=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 5）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 5,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "HN1MIJKChc89FF0IniCt8sLrb9fHhfznF36j/owKpnM=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 6）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 6,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "RX+3//KiL0czONc1K6t0W/drw9zBiaETg703ASNZXiU=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 7）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 7,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "ybijUERP+QXuTYP67OhxWS6P+ksBdoLC0qPkUb/EjZE=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 8）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 8,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "CY3+xWy98lsinEoMG6jIyfOGWK8IDjTT0X1SUUVYUuw=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 9）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 9,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "01R5aYyfC7WGqcgqvbfI7e/TAwcttubEk/+kenccIl4=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 10）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 10,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "q+c+e0693jACaRNWERUjRdglDMm3tfh39Gmuv9MaCsg=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 11）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 11,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "pYLb04NznT+9Amqq+oa9R3f/aMiCvzK6VLNyFWt9M5Q=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 12）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 12,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "kttd/ccT34iNvkBGhr5qGkLytuCx46FLbNjhMQj1q2E=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 13）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 13,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "9Ob/nCnx1/yelavXMZZwfN7wRbbxBoUvcuKvvxz60Pk=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 14）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 14,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "UJuSErWx9j6OpF2n349oGajFae0PzWc1nOkrO+nFMl8=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 15）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 15,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "g3cWEeNZLSgqo+pTPIr9oNY8vnw8IVWPnfm9jHE7ixE=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 16）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 16,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "e0OhOnfLSPP3rGgsnnz0UdopNinAJE0NT42prg2cFdA=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 17）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 17,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "fVk/pPsYPe6ao1A3f8QOm6fLh2ZxhvQI+Bj95C8v04I=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 18）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 18,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "T7Luxa0v+JIzduPl5rORbqhdBVVBrUllRb4OLl/PV2U=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 19）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 19,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "BSIFvq3kK3TadYPcKta7RHwpceZ6TMcI10lFnOB1YPo=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 20）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 20,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "NVg/K6v4m2UPGAdcaxTpIybVaONLYJKxqHovnL2mWkE=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 21）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 21,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "PP1AlpU+szpK9Ecw4LDKBViOIWDdv3zPZBcDrQFPX9E=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 22）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 22,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "VYFSXuAPFOJCeu5K7z6jHDxxpRLV3xx8+/h1uWCAF6w=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 23）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 23,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "epeEb8r5hjonBwUhgG4I8rc1VeQWz6g2qvZbfrqgA7o=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 24）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 24,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "zLFQdOxHIXICwp6c4jdGpfn8xIlGE5CTaI6NlTMKHZs=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 25）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 25,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "dSI6SKeVwqsBxjOlMbVtSWxXPRqHKcdS0WoB8yF/5gM=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 26）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 26,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "TNIFrfrPbYpyU0Z0KK60S7StzvtAPm26HcOW751xXbY=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 27）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 27,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "2Bf7Tp9IrO8qp2k+Jg5dV++Hf6GTSi4a764UiOIsoig=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 28）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 28,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "3hNL9il2jaCnLSDpgNcRgeGdN2iR9X4uuXm0UItyU14=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 29）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 29,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "N7y2gLAubhvAiO+E+bnjpNJsBAAkmw0OVovQhH6RAV4=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 30）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 30,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "3ck+EK50NcfvN1wr/U0rJpczRm1Z+sOQn9C3ZB4yyms=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 31）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 31,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "ZVJHbLmJW0pGDoG46q7zH/VimPHTpjAr52qGaCwNg2M=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 32）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 32,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "oKK3bQf1zcFqPJkhnPHZJqs0SzMg/cUjYAij++BowSI=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 33）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 33,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "LVPlgpcZKObPEdDSWz1JvTjIHLSXaQxzZM1pn8IaUvg=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 34）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 34,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "murrGIAYhSzQWkdbnWgvu3YzLatB9Tqc+7UbRLD7OV0=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 35）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 35,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "46cnvguWob39UzYXpfjU18L9nobHHqUcat/TLuBpZts=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 36）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 36,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "ombCBVWV0E+5XrLGDAWqKqbxRlKXaGHPlo/hKMjvxwc=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 37）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 37,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "/YctFXmq7I5ljTDMSMDMxdA6qH73tuHZ0hFY+QoST3A=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 38）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 38,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "+WXttQMPzL9fryzpHXGgwH5dep+Fnvn/2pO6ty0Zp2s=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 39）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 39,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "A4ZlXOBDmD4J/9PiHFWUq1T5TQF2TKfcK/DlanQnxWk=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 40）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 40,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "cwDKbTdppSMEfTk0yTC70UyINog6paDpzPwNKR6MMKY=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 41）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 41,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "9XpwIgbQeWrzfDdZkkkDKAcY9Dy6uquDLfYaaMldY/E=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 42）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 42,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "KjL9VnE0IMZWVPbfr9TIbL4CcGHGaLu88Bfu7CxmeEQ=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 43）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 43,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "0mE2fhN4j2mXgw40RKVA5cAIXnb6SF2kWi9ZPeau01o=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 44）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 44,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "/ZByGVmH9zamHkKkxzIYS5P+eyot3VMAdr0G67lRzAM=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 45）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 45,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "hsCT4bxuBpcuPlCHvxmSnD6vQs4UmU+Iznu0eLMF02w=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 46）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 46,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "YsPek5Ele+EghaxiIjnMGlA/01dRHaaO0EwzGc3fYAo=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 47）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 47,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "MlaPgTq5N9MY7E4R0Uz8jmgnCWjOS67fZv1wc1p2Bak=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 48）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 48,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "OfOzAJAiSh/0kuYdZAO9iWdRpwzWudVuL3XTSOqsq2k=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 49）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 49,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "cpLmtygwCuVobnyh1TfxMGE4JtLDdrX5axY+7vmmmLU=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 50）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 50,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "ecZhgH5NE2vn13n4dDYW1Qrd3X0Vk7hf48DKnsFTgnY=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 51）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 51,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "mmOvIT/EZkeS9WQvTANwpwaXsdUdvcQPePhe/zPSlvM=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 52）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 52,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "k3HjbxPriD6oNwtWQwrPlZ3umkfhIuWWWg5m20+Hj3k=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 53）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 53,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "FzQNf/QyhH8zISjkoUsAFhd6gZilDVWmL2IsIZ0gvfY=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 54）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 54,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "3+5d9k+XBm0YOurAVZbMPfiA0qNi+lLFmT0SAfTb0go=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 55）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 55,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "gkZxDm3bKy52vFE5mkE88lBx7b1gCvI9vnOabJ8R4es=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 56）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 56,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "3xQ9ZJzrhOiEaAjG1fufocQpS63Qe7EllNVeNj5/ZKI=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 57）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 57,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "O6Em2yGbfCn9dwMuZm0zrAxMnuEqo+x+EDDoKs9wW0s=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 58）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 58,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "lsPhJL21wwx9VCHNidd3FGGIByX15OMaU2vsLNnLkhs=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 59）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 59,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "pS+M+bSVaY8uNYJ6X8XYXyjU6Iz8QFnlARWhtnz3dfs=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 60）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 60,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "n4x5vR85jj4RT7d/RObJVEmatPXra5sHOPBveWNnJfE=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 61）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 61,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "XQrgOKrVXaT29wDTUFFN0xuXt5m6wjoX9N15BIDK2yQ=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 62）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 62,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "HN1vITDCuYe0LyHqVBW5ODWWsJ/xT9JKFHJp6grNAo8=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 63）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 63,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "U8uLFH3Mqse5MVYyo+f8yZcrFI+BZot/vidwJL/eCsE=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 64）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 64,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "6cs2mtUezX4fqwvV+JeDNWQ0nDiTE+utSEaasIuSkE8=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 65）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 65,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "HgvOeDR4dwHWQ1urq7qAMMovwJ5q/Ya+mT0kAWFyMuQ=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 66）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 66,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "vD4jRz3QLDggOwr4LaX9C449fQESYJbiarZDBAWJVKE=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 67）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 67,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "svmL/JrlBt4qo3qAgLXie/2yeh++Yt71BjP8vpQQBjQ=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 68）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 68,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "wc5WGpYPUI1jP6TMqNT85A7GRMwm3rF6GAjqAOyKDNQ=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 69）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 69,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "M4RWFLh5v5FSa/NSW/NPNtePuwK+3jzpLW3SzUPUCqc=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 70）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 70,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "eRJDxTDRyBYrzNO2rHB3Q1HTAlqKposnIvr//05FayQ=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 71）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 71,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "mfDz8HqBCvhwHzahCXoCDKSOC583m8AEg9BHJDceDLM=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 72）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 72,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "88CJJ84o4PhtMn6s94fntXV3CaBAdwlwJX4xtYT6AZM=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 73）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 73,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "3CEr6xftQPHPNPI8efDTTuG4k5uSMB7KTQx0x7fu51s=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 74）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 74,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "LcaPJfIh9a9ov8OKQcMndWyV0cVQBcQcITZ4axA2DAA=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 75）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 75,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "q0ZZi83gRh5FRm/JcYFe5iIMV5LpOy2kJemhabQZtpA=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 76）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 76,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "4utwHGW9YuXAg8uLMGTZRIIzviuHfnxhO4HW1z6WWo4=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 77）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 77,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "rLKWvaF1aOW8dN4wiPSNgkqCE/6QwhTfvbU98KXM23M=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 78）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 78,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "UrANcgtzIB/wLM6GCTBerrbyTKYBiN83hmHZEotpGTI=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 79）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 79,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "j89YboPV0os66W/D/YV1t/S5dhEMZ/6GaMsQYp1osUA=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 80）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 80,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "HiSVcj0K2FRsSs+Hw0aTj9aRs+ZG+CifyDZ58M6XBMk=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 81）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 81,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "uiqFJGh2AZ4moiiWwJ255DXrHbGmptjfq9hg1kP221I=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 82）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 82,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "hEOpwymCs0LT9zrjto+/Q4+74MBxmpH/j4g8YYMsyTQ=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 83）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 83,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "594Z6HTMHZl2rbPa56BNhjCK7DpBelCNKDlwdIXdcbY=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 84）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 84,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "h08U9uB6qDvvRoTtGQqi7sDtb3cPYTIEq6zeq2TASj8=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 85）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 85,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "sEcjQf2uvuALVTOSrUYSrt9ahJasCd/JhGqMk4hMxx8=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 86）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 86,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "XGgc39nlePN+6wY4TEM1MwjF5Bn0VslxeFOzB/c9Q2M=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 87）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 87,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "yHtfQsE0p2JOodFEPwgi52jqyBPcXnKuSMq3Z5AMlvs=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 88）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 88,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "zkkQEuTQrb+8COwuCoTF2yW6s52xf9t2HFOdTjQP7WY=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 89）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 89,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "T4yme2rOQftQa5b4qXBNkDgpVKUtjtkuSOYI65ZOmc8=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 90）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 90,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "jhH/MdHsOSH72HaQGnkpkMpyRUfFKZcOU5+zT/+IxU0=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 91）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 91,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "hQvW3hXskoWtZ5rJnz88lTgLmacgeW2pkQvrGcZYwDQ=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 92）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 92,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "XALUfPQuEtHyvHzdEDtNntlLoPwxiK7BjmurmjtN9t8=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 93）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 93,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "QY4n95ZoSeLejK/vuCWC89EaFv2n4dOJr99JtnJ3eQY=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 94）",
+      "epoch": 0,
+      "feature_name": "负整数支持原语",
+      "height": 94,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "e2KBM9Tx+L+VDWR1HubKaSNbJKr13eXsUCksayQ/z1c=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 95）",
+      "epoch": 0,
+      "feature_name": "闭包捕获原语",
+      "height": 95,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "V2p/lKSilzVpSe27HPMOqZYOIjNaLeNhzgFcz2P/Z1k=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 96）",
+      "epoch": 0,
+      "feature_name": "行注释原语",
+      "height": 96,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "ytG6Vrh+XgRuXFOMudyyOtOvLW29hXT2BHzHRzqFfnM=",
+      "demo_code": "(bind a 1)\n(bind b 2)\n(+ a b)",
+      "description": "预沉积演示特性 绑定聚合原语（高度 97）",
+      "epoch": 0,
+      "feature_name": "绑定聚合原语",
+      "height": 97,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 3,
+          "program": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "34Lo61F5TcDircS2b0Dd7vp+Y0al2Xiy5/O9On+LvbA=",
+      "demo_code": "(bind inc (lambda (x) (+ x 1)))\n(inc 41)",
+      "description": "预沉积演示特性 增量函数原语（高度 98）",
+      "epoch": 0,
+      "feature_name": "增量函数原语",
+      "height": 98,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 42,
+          "program": "((lambda (x) (+ x 1)) 41)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "wD7F4miTE+nE2cPCvRIkNkVQU7UCWVSVhPYkZi85BcA=",
+      "demo_code": "(+ 3 4)",
+      "description": "预沉积演示特性 多参数求和原语（高度 99）",
+      "epoch": 0,
+      "feature_name": "多参数求和原语",
+      "height": 99,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ 3 4)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "JvnILNhaKZMuAQlFalU03REnJsCAPZeXupyWt2c50FM=",
+      "demo_code": "(+ -3 10)",
+      "description": "预沉积演示特性 负整数支持原语（高度 100）",
+      "epoch": 1,
+      "feature_name": "负整数支持原语",
+      "height": 100,
+      "language_features": [],
+      "miner_label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g==",
+      "test_cases": [
+        {
+          "expected": 7,
+          "program": "(+ -3 10)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "nMjIP4gDucXvhsAPoMpwceDnHNPvROZRyAlahKzLEzA=",
+      "demo_code": "((lambda (x) (+ x 5)) 3)",
+      "description": "预沉积演示特性 闭包捕获原语（高度 101）",
+      "epoch": 1,
+      "feature_name": "闭包捕获原语",
+      "height": 101,
+      "language_features": [],
+      "miner_label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg==",
+      "test_cases": [
+        {
+          "expected": 8,
+          "program": "((lambda (x) (+ x 5)) 3)"
+        }
+      ]
+    },
+    {
+      "activation": [],
+      "block_hash_b64": "udSSiT5lq8BL/oi9TwV8e36/gjnUw5eUxs7T40/U45U=",
+      "demo_code": ";; 沉积层注释\n(+ 2 3)",
+      "description": "预沉积演示特性 行注释原语（高度 102）",
+      "epoch": 1,
+      "feature_name": "行注释原语",
+      "height": 102,
+      "language_features": [],
+      "miner_label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ==",
+      "test_cases": [
+        {
+          "expected": 5,
+          "program": "(+ 2 3)"
+        }
+      ]
+    }
+  ],
+  "chain_height": 102,
+  "cumulative_active_features": [],
+  "current_active_features": [],
+  "current_epoch_base_features": [],
+  "epoch_blocks": 100,
+  "epochs": [
+    {
+      "active_features": [],
+      "archived": true,
+      "block_count": 100,
+      "cumulative_active_features": [],
+      "end_height": 99,
+      "epoch_base_features": [],
+      "epoch_new_features": [],
+      "epoch_number": 0,
+      "start_height": 0,
+      "summary": {
+        "candidates": [
+          {
+            "candidate_id": "mock-rule-v1:keyword-top",
+            "producer_label": "化石刻工·临渊",
+            "text": "本纪元高频主题 Top3：函数（17 次）、增量（17 次）、求和（17 次）。",
+            "weight": 2857
+          },
+          {
+            "candidate_id": "mock-rule-v1:contributor-distribution",
+            "producer_label": "地层匠·沧石",
+            "text": "贡献者分布：化石刻工·临渊 33 块 · 地层匠·沧石 33 块 · 沉积者·阿砚 33 块 · 创世者 1 块（合计 100 块）。",
+            "weight": 2412
+          },
+          {
+            "candidate_id": "mock-rule-v1:first-last-narrative",
+            "producer_label": "沉积者·阿砚",
+            "text": "从首块「创世内核」（H0）到末块「多参数求和原语」（H99），共 100 块；涵盖特性：增量函数原语×17、多参数求和原语×17、绑定聚合原语×17、行注释原语×16、负整数支持原语×16、闭包捕获原语×16。",
+            "weight": 2292
+          }
+        ],
+        "final_text": "本纪元高频主题 Top3：函数（17 次）、增量（17 次）、求和（17 次）。",
+        "method_label": "mock-rule-v1",
+        "status": "finalized",
+        "tie_occurred": false,
+        "winner_candidate_id": "mock-rule-v1:keyword-top",
+        "winner_producer_label": "化石刻工·临渊"
+      },
+      "summary_status": "finalized"
+    },
+    {
+      "active_features": [],
+      "archived": false,
+      "block_count": 3,
+      "cumulative_active_features": [],
+      "end_height": 102,
+      "epoch_base_features": [],
+      "epoch_new_features": [],
+      "epoch_number": 1,
+      "start_height": 100,
+      "summary": null,
+      "summary_status": "pending"
+    }
+  ],
+  "miners": [
+    {
+      "balance": 3400,
+      "label": "化石刻工·临渊",
+      "miner_pubkey_b64": "RlKtKClw52DyaXT6odyAydQI+wTqOyICpfZwAvEHV5h/QGJnJYqbkKNFLdeN4yqfpVJqWyHrmQRY6plFcx+LWg=="
+    },
+    {
+      "balance": 3400,
+      "label": "地层匠·沧石",
+      "miner_pubkey_b64": "liXRm1eWKSiM4iGQnJqhlidEbFHEJHMQ1nZkboG3CeTDOhIDRvLzuvwLnISlbhYDtALyHjQhhVDl8SRCijS86g=="
+    },
+    {
+      "balance": 3400,
+      "label": "沉积者·阿砚",
+      "miner_pubkey_b64": "ymNGuGzTR//+G3l4n0tnpk+DH0keENnyhQdazhMllBejzscL5ezdXujMkF0INHHvepD0E6l1iHFUAZ8qmQOAIQ=="
+    }
+  ],
+  "readonly": true,
+  "sleeping_branches": [],
+  "summary_chain": [
+    {
+      "candidates": [
+        {
+          "candidate_id": "mock-rule-v1:keyword-top",
+          "producer_label": "化石刻工·临渊",
+          "text": "本纪元高频主题 Top3：函数（17 次）、增量（17 次）、求和（17 次）。",
+          "weight": 2857
+        },
+        {
+          "candidate_id": "mock-rule-v1:contributor-distribution",
+          "producer_label": "地层匠·沧石",
+          "text": "贡献者分布：化石刻工·临渊 33 块 · 地层匠·沧石 33 块 · 沉积者·阿砚 33 块 · 创世者 1 块（合计 100 块）。",
+          "weight": 2412
+        },
+        {
+          "candidate_id": "mock-rule-v1:first-last-narrative",
+          "producer_label": "沉积者·阿砚",
+          "text": "从首块「创世内核」（H0）到末块「多参数求和原语」（H99），共 100 块；涵盖特性：增量函数原语×17、多参数求和原语×17、绑定聚合原语×17、行注释原语×16、负整数支持原语×16、闭包捕获原语×16。",
+          "weight": 2292
+        }
+      ],
+      "final_text": "本纪元高频主题 Top3：函数（17 次）、增量（17 次）、求和（17 次）。",
+      "method_label": "mock-rule-v1",
+      "status": "finalized",
+      "tie_occurred": false,
+      "winner_candidate_id": "mock-rule-v1:keyword-top",
+      "winner_producer_label": "化石刻工·临渊"
+    }
+  ]
+}

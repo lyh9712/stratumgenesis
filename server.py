@@ -105,28 +105,52 @@ class MinerRegistry:
 # 提案文本 -> 演示代码/测试用例 的简化映射。
 # 真实 NovScript 内核只支持整数、函数与 + 加法，因此生成的代码必须在内核
 # 语法范围内，否则会被第 4/5 阶段校验真实拒绝。
+# 语言演化：命中「扩展原语关键词」的提案返回非空 activation（本块要激活的
+# 新原语名），并经第 5/6 阶段校验确认后真正注册进链级语言注册表。
 # ---------------------------------------------------------------------------
-def generate_proposal(text: str) -> tuple[str, str, tuple[TestCase, ...]]:
+# 扩展原语关键词表：提案文本命中任意关键词 -> (原语名元组, demo, tests)。
+# 每个 demo 都依赖其 activation 原语（demo 用到的每个原语都必须包含在
+# activation 中），保证正负测试语义成立。
+_FEATURE_PRESETS: tuple[tuple[tuple[str, ...], tuple[str, ...], str, tuple[TestCase, ...]], ...] = (
+    (("减法", "减"), ("-",), "(- 10 3)", (TestCase("(- 10 3)", 7),)),
+    (("乘法", "乘"), ("*",), "(* 3 4)", (TestCase("(* 3 4)", 12),)),
+    (("整除",), ("//",), "(// 7 2)", (TestCase("(// 7 2)", 3),)),
+    (("取模", "求余"), ("%",), "(% 7 3)", (TestCase("(% 7 3)", 1),)),
+    (("列表",), ("list", "head"), "(head (list 1 2 3))", (TestCase("(head (list 1 2 3))", 1),)),
+    (("cons",), ("cons", "list", "head"), "(head (cons 9 (list 1 2)))", (TestCase("(head (cons 9 (list 1 2)))", 9),)),
+    (("取头", "head"), ("head", "list"), "(head (list 5 6))", (TestCase("(head (list 5 6))", 5),)),
+    (("取尾", "tail"), ("tail", "list", "head"), "(head (tail (list 1 2 3)))", (TestCase("(head (tail (list 1 2 3)))", 2),)),
+    (("长度", "length"), ("length", "list"), "(length (list 1 2 3))", (TestCase("(length (list 1 2 3))", 3),)),
+    (("输出", "echo"), ("echo",), "(echo 1 2 3)", (TestCase("(echo 1 2)", {"type": "InternalNil"}),)),
+    (("条件", "if"), ("if", "lt"), "(if (lt 1 2) 7 8)", (TestCase("(if (lt 1 2) 7 8)", 7),)),
+)
+
+
+def generate_proposal(text: str) -> tuple[str, str, tuple[TestCase, ...], tuple[str, ...]]:
     lowered = text.lower()
+    # 扩展原语关键词优先匹配：命中则激活对应原语（语言真实演化）。
+    for keywords, activation, demo, tests in _FEATURE_PRESETS:
+        if any(keyword in lowered for keyword in keywords):
+            return f"扩展原语 {activation[0]}", demo, tests, activation
     if any(k in lowered for k in ("函数", "lambda", "增量")):
         demo = "(bind inc (lambda (x) (+ x 1)))\n(inc 41)"
         tests = (TestCase("((lambda (x) (+ x 1)) 41)", 42),)
-        return "增量函数扩展", demo, tests
+        return "增量函数扩展", demo, tests, ()
     if any(k in lowered for k in ("绑定", "bind", "变量")):
         demo = "(bind a 1)\n(bind b 2)\n(+ a b)"
         tests = (TestCase("(+ 1 2)", 3),)
-        return "绑定聚合扩展", demo, tests
+        return "绑定聚合扩展", demo, tests, ()
     if "+" in text or "求和" in text or "加法" in text:
-        demo = "(+ 1 2 3 4 5)"
-        tests = (TestCase("(+ 1 2 3 4 5)", 15),)
-        return "多参数求和扩展", demo, tests
+        demo = "(+ 1 2)"
+        tests = (TestCase("(+ 1 2)", 3),)
+        return "多参数求和扩展", demo, tests, ()
     if "注释" in text:
         demo = ";; " + text + "\n(+ 2 3)"
         tests = (TestCase("(+ 2 3)", 5),)
-        return "行注释扩展", demo, tests
+        return "行注释扩展", demo, tests, ()
     demo = "(bind x (+ 1 2))\nx"
     tests = (TestCase("(+ 1 2)", 3),)
-    return "内核算术扩展", demo, tests
+    return "内核算术扩展", demo, tests, ()
 
 
 def make_poi(feature_name: str, demo: str, tests: tuple[TestCase, ...], prompt_text: str) -> PoiRecord:
@@ -220,6 +244,9 @@ def build_server_state(
     - 存档存在：加载并校验后继续（不再预沉积）；损坏/版本不匹配抛 PersistenceError。
     """
     if fresh or not os.path.exists(persist_path):
+        if fresh:
+            # 旧存档非破坏处置：重建前先保留为 .bak-<旧format_version>，不删除。
+            persistence.backup_old_archive(persist_path)
         state = ServerState(persist_path=persist_path)
         _auto_save(state)
         return state
@@ -243,6 +270,7 @@ def api_chain_state(state: ServerState) -> dict:
     store = state.store
     blocks = []
     for block in store.main_chain():
+        snapshot = store.language_snapshot_at(block.height)
         blocks.append({
             "height": block.height,
             "epoch": block.epoch,
@@ -253,6 +281,9 @@ def api_chain_state(state: ServerState) -> dict:
             "demo_code": block.proposal.demo_code,
             "test_cases": [{"program": t.program, "expected": t.expected} for t in block.proposal.test_cases],
             "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
+            # 语言演化：本块激活的原语名 + 上链后语言可见特性数（语言快照）。
+            "activation": list(block.activation),
+            "language_features": sorted(snapshot.active_features) if snapshot else [],
         })
     epochs = []
     for snapshot in store.epoch_manager.snapshots():
@@ -265,6 +296,8 @@ def api_chain_state(state: ServerState) -> dict:
             # v0.3 阶段 B 追加：已归档纪元返回 finalized 摘要；未封口纪元为空。
             "summary": _summary_to_dict(snapshot.summary) if snapshot.summary else None,
             "summary_status": snapshot.summary_status,
+            # v0.3 阶段 C 追加：该纪元结束时链级已激活的语言特性。
+            "active_features": sorted(snapshot.active_features),
         })
     sleeping = []
     for branch in store.sleeping_branches().values():
@@ -297,6 +330,8 @@ def api_chain_state(state: ServerState) -> dict:
         "sleeping_branches": sleeping,
         "miners": miners,
         "epoch_blocks": EPOCH_BLOCKS,
+        # v0.3 阶段 C 追加：当前链级已激活的语言特性（语言演化状态）。
+        "current_active_features": sorted(store.language_registry.snapshot()),
         # v0.3 阶段 B 追加：按纪元顺序的已确定摘要链（为「大断层事件」留钩子）。
         "summary_chain": [_summary_to_dict(item) for item in store.epoch_manager.summary_chain()],
     }
@@ -346,14 +381,14 @@ def api_propose(state: ServerState, body: dict) -> dict:
         return {"success": False, "reason": "未知矿工身份，请先从 /chain-state 选择矿工", "block_hash_b64": None,
                 "is_sleeping_branch": False, "chain_height": store.height}
 
-    feature_name, demo, tests = generate_proposal(text)
+    feature_name, demo, tests, activation = generate_proposal(text)
     proposal = Proposal(feature_name, text, demo, tests)
     poi = make_poi(feature_name, demo, tests, text)
     unsigned = Block(store.height + 1, store.tip.block_hash, state.registry.label_of(public_key), proposal, poi,
-                     miner_pubkey=public_key)
+                     miner_pubkey=public_key, activation=activation)
     block = replace(unsigned, signature_bytes=sign_block_payload(private_key, unsigned.canonical_bytes()))
 
-    # 完整 6 阶段校验（第 0 步 ECDSA 签名由服务端真实完成）
+    # 完整 8 阶段校验（第 0 步 ECDSA 签名由服务端真实完成）
     result = validate_block(block, store)
     if not result.accepted:
         # 校验不通过：存入休眠分支，不修改账本与纪元快照。
@@ -391,13 +426,15 @@ def api_propose(state: ServerState, body: dict) -> dict:
 
 def api_eval_novscript(state: ServerState, body: dict) -> dict:
     code = str(body.get("code", ""))
-    result = run_sandbox(code)
+    # 默认按「创世内核 + 当前链级已激活原语」执行：提案激活的新原语立即可用。
+    result = run_sandbox(code, registry=state.store.language_registry)
     return {
         "ok": result.ok,
         "value": result.value,
         "error_type": ERROR_LABELS.get(result.error_type, result.error_type),
         "error_message": result.error_message,
         "steps": result.steps,
+        "output": result.output,
     }
 
 
@@ -493,14 +530,15 @@ def main(argv: list[str] | None = None) -> None:
         except persistence.PersistenceError as error:
             print(f"[错误] 导出失败：{error}")
             sys.exit(1)
-        print(f"[导出完成] {args.archive} -> {args.export}（format_version=chain-v1）")
+        print(f"[导出完成] {args.archive} -> {args.export}（format_version={persistence.FORMAT_VERSION}）")
         return
 
     try:
         state = build_server_state(fresh=args.fresh, persist_path=args.archive)
     except persistence.PersistenceError as error:
         print(f"[错误] 存档加载失败：{error}")
-        print("提示：如需忽略存档重建演示链，请使用 python server.py --fresh")
+        print("提示：如想保留旧存档并在别处重建演示链，请改用 python server.py --archive <新存档路径>；")
+        print("      如需忽略旧存档重建（旧档会保留为 .bak），请使用 python server.py --fresh")
         sys.exit(1)
 
     httpd = create_server(state)

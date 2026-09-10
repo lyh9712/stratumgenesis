@@ -188,6 +188,62 @@ class PersistenceTests(unittest.TestCase):
             exported_data = json.load(handle)
         self.assertEqual(exported_data["format_version"], persistence.FORMAT_VERSION)
 
+    # ---------------------------------------------------------------
+    # 6) 旧存档非破坏处置（监督验收 E）
+    # ---------------------------------------------------------------
+    def _write_old_v1_archive(self, path: str, marker: str = "keep-me") -> None:
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"format_version": "chain-v1", "marker": marker}, handle)
+
+    def test_fresh_keeps_old_archive_as_bak(self):
+        """--fresh 重建前，旧存档必须保留为 <原名>.bak-<旧format_version>，不删除。"""
+        archive = self.path("chain_v1.json")
+        self._write_old_v1_archive(archive, marker="keep-me")
+        state = srv.build_server_state(fresh=True, persist_path=archive)
+        self.assertEqual(state.store.height, 102)
+        backup = self.path("chain_v1.json.bak-chain-v1")
+        self.assertTrue(os.path.exists(backup), "旧存档应被保留为 .bak-chain-v1")
+        with open(backup, encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["marker"], "keep-me")
+        # 原路径被新存档（chain-v2）重新落盘，而非旧内容。
+        with open(archive, encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["format_version"], persistence.FORMAT_VERSION)
+
+    def test_fresh_backup_does_not_overwrite_existing_bak(self):
+        """重复 --fresh 时不得覆盖既有 .bak，改用序号后缀。"""
+        archive = self.path("chain_v1.json")
+        self._write_old_v1_archive(archive, marker="first")
+        srv.build_server_state(fresh=True, persist_path=archive)
+        # 第二次：先放回一个旧档，再 fresh。
+        self._write_old_v1_archive(archive, marker="second")
+        srv.build_server_state(fresh=True, persist_path=archive)
+        backup1 = self.path("chain_v1.json.bak-chain-v1")
+        backup2 = self.path("chain_v1.json.bak-chain-v1.1")
+        self.assertTrue(os.path.exists(backup1))
+        self.assertTrue(os.path.exists(backup2))
+        with open(backup1, encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["marker"], "first")
+        with open(backup2, encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["marker"], "second")
+
+    def test_refused_load_leaves_original_file_untouched(self):
+        """旧版本存档被拒绝加载时，原文件不得被修改或删除。"""
+        archive = self.path("chain_v1.json")
+        self._write_old_v1_archive(archive, marker="keep-me")
+        with open(archive, "rb") as handle:
+            before = handle.read()
+        with self.assertRaises(persistence.PersistenceError) as cm:
+            persistence.load_state(archive)
+        message = str(cm.exception)
+        self.assertIn("版本不匹配", message)
+        # 提示必须优先引导 --archive <新路径>，而非直接 --fresh 覆盖。
+        self.assertIn("--archive", message)
+        with open(archive, "rb") as handle:
+            after = handle.read()
+        self.assertEqual(after, before)
+        # 拒绝加载本身不产生 .bak（只有 --fresh 重建前才改名保留）。
+        self.assertFalse(os.path.exists(self.path("chain_v1.json.bak-chain-v1")))
+
 
 if __name__ == "__main__":
     unittest.main()

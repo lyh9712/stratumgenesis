@@ -32,6 +32,8 @@ class EpochSnapshot:
     # v0.3 阶段 B 追加：已确定摘要（未封口为 None）与状态标记。
     summary: EpochSummary | None = None
     summary_status: str = "pending"  # pending / finalized
+    # v0.3 阶段 C 追加：该纪元结束时链级已激活的语言特性集合（语言演化档案）。
+    active_features: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -62,8 +64,13 @@ class EpochManager:
             grouped.setdefault(self.get_epoch_of_block(block.height), []).append(block)
         snapshots: list[EpochSnapshot] = []
         summary_chain: list[EpochSummary] = []
+        # 按高度顺序累积链级已激活特性：每个纪元快照记录「截至该纪元末尾」
+        # 的语言状态（含此前纪元激活的特性），供语言演化档案展示。
+        active_features: set[str] = set()
         for epoch_number in sorted(grouped):
             blocks = sorted(grouped[epoch_number], key=lambda item: item.height)
+            for block in blocks:
+                active_features.update(block.activation)
             start_height = epoch_number * EPOCH_BLOCKS
             end_height = blocks[-1].height
             # 只有主链已经到达下一个纪元起点，才将当前纪元标记归档。
@@ -82,6 +89,7 @@ class EpochManager:
                 epoch_number, start_height, end_height,
                 [bytes.fromhex(item.block_hash) for item in blocks], archived,
                 summary, summary_status,
+                frozenset(active_features),
             ))
         self._snapshots = snapshots
         self._summary_chain = summary_chain

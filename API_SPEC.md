@@ -31,6 +31,7 @@ GET http://127.0.0.1:28417/chain-state
 {
   "chain_height": 102,
   "epoch_blocks": 100,
+  "current_active_features": ["-", "head", "list"],
   "blocks": [
     {
       "height": 0,
@@ -41,7 +42,9 @@ GET http://127.0.0.1:28417/chain-state
       "description": "创世内核……",
       "demo_code": "(+ 1 2)",
       "test_cases": [{"program": "(+ 1 2)", "expected": 3}],
-      "block_hash_b64": "……"
+      "block_hash_b64": "……",
+      "activation": [],
+      "language_features": []
     }
   ],
   "epochs": [
@@ -51,9 +54,10 @@ GET http://127.0.0.1:28417/chain-state
                   "tie_occurred": false,
                   "candidates": [{"candidate_id": "mock-rule-v1:keyword-top", "text": "……",
                                    "producer_label": "地层匠·沧石", "weight": 3420}]},
-     "summary_status": "finalized"},
+     "summary_status": "finalized",
+     "active_features": ["-", "head", "list"]},
     {"epoch_number": 1, "start_height": 100, "end_height": 102, "block_count": 3, "archived": false,
-     "summary": null, "summary_status": "pending"}
+     "summary": null, "summary_status": "pending", "active_features": []}
   ],
   "summary_chain": [ /* 与已归档纪元的 summary 同构，按纪元顺序排列 */ ],
   "sleeping_branches": [
@@ -80,8 +84,9 @@ GET http://127.0.0.1:28417/chain-state
 | 字段 | 说明 |
 |---|---|
 | `chain_height` | 主链末端高度 |
-| `blocks` | 主链全部区块（高度升序）；`miner_label`、`miner_pubkey_b64`、`feature_name`、`description`、`demo_code`、`test_cases`、`block_hash_b64` 供前端渲染 |
-| `epochs` | 纪元快照；`archived=true` 表示已归档（前端显示为半透明古岩层）。v0.3 阶段 B 追加：`summary`（已归档纪元为 finalized 摘要对象，未封口为 null）、`summary_status`（pending/finalized） |
+| `current_active_features` | v0.3 阶段 C 追加：当前链级已激活的语言特性（原语名列表） |
+| `blocks` | 主链全部区块（高度升序）；`miner_label`、`miner_pubkey_b64`、`feature_name`、`description`、`demo_code`、`test_cases`、`block_hash_b64` 供前端渲染；v0.3 阶段 C 追加：`activation`（本块激活的原语名）、`language_features`（该块上链后语言可见特性数） |
+| `epochs` | 纪元快照；`archived=true` 表示已归档（前端显示为半透明古岩层）。v0.3 阶段 B 追加：`summary`（已归档纪元为 finalized 摘要对象，未封口为 null）、`summary_status`（pending/finalized）；v0.3 阶段 C 追加：`active_features`（该纪元结束时链级已激活特性） |
 | `summary_chain` | v0.3 阶段 B 追加：按纪元顺序的已确定摘要数组（与 `epochs[i].summary` 同构，为「大断层事件」预留） |
 | `sleeping_branches` | 休眠/落选区块摘要，含拒绝原因 `reason` |
 | `miners` | 可用矿工身份与链内 UTXO 余额（仅演示查询；余额与投票权重完全隔离） |
@@ -90,7 +95,12 @@ GET http://127.0.0.1:28417/chain-state
 
 ## 2. POST /propose
 
-提交语言扩展提案。服务端执行：提案文本解析 → 生成演示代码与测试用例 → 构造候选区块并用矿工私钥完成 ECDSA 签名 → 送入候选池 → 完整 6 阶段校验（签名/结构/创世内核兼容/PoI mock/解析/沙箱/UTXO）→ 冲突加权投票 → 成功上链；失败或落选存入休眠分支（不修改账本与纪元）。
+提交语言扩展提案。服务端执行：提案文本解析 → 生成演示代码与测试用例 → 构造候选区块并用矿工私钥完成 ECDSA 签名 → 送入候选池 → 完整 8 步校验（签名/结构/创世内核兼容/PoI mock/解析/特性激活/沙箱/语言正负测试/UTXO）→ 冲突加权投票 → 成功上链；失败或落选存入休眠分支（不修改账本与纪元）。
+
+**语言演化（v0.3 阶段 C）**：命中扩展原语关键词的提案携带 `activation`，第 5 步校验
+其合法性（预置池内、不重复、非内核原语），第 7 步正负测试证明「激活后能跑、不激活
+跑不了」；上链后原语真实注册进链级语言注册表，后续提案/沙箱立即可用，历史块按
+当时语言快照版本化重放。
 
 请求：
 
@@ -138,15 +148,33 @@ Content-Type: application/json
 
 ### 提案文本 → 演示代码映射
 
+普通提案（无扩展关键词）：
+
 | 关键词 | 生成的演示代码 | 测试用例 |
 |---|---|---|
 | 函数 / lambda / 增量 | `(bind inc (lambda (x) (+ x 1)))` + `(inc 41)` | `((lambda (x) (+ x 1)) 41)` → 42 |
 | 绑定 / bind / 变量 | `(bind a 1)` + `(bind b 2)` + `(+ a b)` | `(+ 1 2)` → 3 |
-| + / 求和 / 加法 | `(+ 3 4)` | `(+ 3 4)` → 7 |
+| + / 求和 / 加法 | `(+ 1 2)` | `(+ 1 2)` → 3 |
 | 注释 | `;; <提案文本>` + `(+ 2 3)` | `(+ 2 3)` → 5 |
 | 其他（默认） | `(bind x (+ 1 2))` + `x` | `(+ 1 2)` → 3 |
 
-> 注意：NovScript 创世内核只支持整数与函数、不可变 bind、惰性求值和 `+` 加法。生成代码必须落在内核语法范围内，否则会在真实解析/沙箱校验阶段被拒绝——这正是本原型刻意保持的“内核不可修改”约束的体现。
+扩展原语提案（语言演化，`activation` 随区块上链）：
+
+| 关键词 | activation（激活的原语） | 演示代码 |
+|---|---|---|
+| 减法 / 减 | `-` | `(- 10 3)` |
+| 乘法 / 乘 | `*` | `(* 3 4)` |
+| 整除 | `//` | `(// 7 2)` |
+| 取模 / 求余 | `%` | `(% 7 3)` |
+| 列表 | `list` `head` | `(head (list 1 2 3))` |
+| cons | `cons` `list` `head` | `(head (cons 9 (list 1 2)))` |
+| 取头 / head | `head` `list` | `(head (list 5 6))` |
+| 取尾 / tail | `tail` `list` `head` | `(head (tail (list 1 2 3)))` |
+| 长度 / length | `length` `list` | `(length (list 1 2 3))` |
+| 输出 / echo | `echo` | `(echo 1 2 3)` |
+| 条件 / if | `if` `lt` | `(if (lt 1 2) 7 8)` |
+
+> 注意：NovScript 创世内核只支持整数与函数、不可变 bind、惰性求值和 `+` 加法。生成代码必须落在内核语法范围内，否则会在真实解析/沙箱校验阶段被拒绝——这正是本原型刻意保持的“内核不可修改”约束的体现。扩展原语须经提案激活后才能使用（未激活时调用报「未绑定名称」）。
 
 ---
 
@@ -171,9 +199,13 @@ Content-Type: application/json
   "value": 3,
   "error_type": null,
   "error_message": null,
-  "steps": 5
+  "steps": 5,
+  "output": ""
 }
 ```
+
+执行环境：创世内核 + 当前链级已激活原语（v0.3 阶段 C）——链上已激活的扩展原语
+（如 `-` `list`）在此可直接调用。`output` 为 echo 等输出原语写入的文本。
 
 响应示例（失败）：
 
@@ -202,9 +234,12 @@ Content-Type: application/json
 ### 存档路径
 
 - 默认存档：`data/chain_v1.json`（项目根目录下，已在 .gitignore 中排除）；
-- 格式：JSON，`format_version=chain-v1`；内容为主链全部区块、休眠分支（分支标识 + 区块序列 + 拒绝原因）、矿工注册表（含私钥）；
-- UTXO 账本与纪元快照不在存档中序列化，加载时从主链按既有规则确定性重建；
+- 格式：JSON，`format_version=chain-v2`（v0.3 阶段 C 升级，区块新增 activation 字段）；
+  内容为主链全部区块、休眠分支（分支标识 + 区块序列 + 拒绝原因）、矿工注册表（含私钥）；
+- UTXO 账本、纪元快照与语言注册表不在存档中序列化，加载时从主链按既有规则确定性重建；
 - 写入采用临时文件 + 原子替换，逐区块 SHA-256 哈希校验。
+- **旧 `chain-v1` 存档不兼容**（canonical 序列化变化导致哈希/签名失效），加载被拒，
+  需 `python server.py --fresh` 重建演示链。
 
 ### 启动 / 复位
 

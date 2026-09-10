@@ -16,7 +16,7 @@
 
 ```json
 {
-  "format_version": "chain-v1",
+  "format_version": "chain-v2",
   "blocks": [ {区块对象…} ],
   "sleeping_branches": [ {"branch_id": "<父区块哈希>", "blocks": [ {区块对象…} ]} ],
   "miners": [ {"label": "沉积者·阿砚", "public_key_b64": "…", "private_key_b64": "…"} ],
@@ -24,9 +24,12 @@
 }
 ```
 
-- **区块对象**包含：height、parent_hash、proposer、prototype_version、miner_pubkey_b64、signature_bytes_b64、epoch、block_hash、proposal（kind/feature_id/specification/demo_code/test_cases）、poi（全部词元计数字段）、transactions（inputs/outputs/tx_signature_b64）。
+- **区块对象**包含：height、parent_hash、proposer、prototype_version、miner_pubkey_b64、signature_bytes_b64、epoch、block_hash、proposal（kind/feature_id/specification/demo_code/test_cases）、poi（全部词元计数字段）、transactions（inputs/outputs/tx_signature_b64）、**activation（本区块激活的新原语名列表，v0.3 阶段 C 新增）**。
 - **bytes 一律 base64** 编码；JSON 采用 `sort_keys=True`、紧凑分隔符，输出确定性可复现。
-- `format_version = "chain-v1"`：后续格式演进时递增；加载时版本不匹配直接拒绝。
+- `format_version = "chain-v2"`：v0.3 阶段 C 因区块新增 `activation` 字段（已纳入
+  canonical_payload → 区块哈希与 ECDSA 签名），序列化格式随之升级，**旧 chain-v1 存档
+  canonical 序列化不兼容，加载会被拒绝**（须 `--fresh` 重建或 `--archive` 指向新路径）；
+  后续格式演进时递增；加载时版本不匹配直接拒绝。
 
 ## 3. 保存 / 恢复策略
 
@@ -40,7 +43,7 @@
 
 - 读取 JSON → 校验 `format_version` 与必要字段 → **逐区块重建并校验 SHA-256 哈希**（存储哈希与重算哈希不一致即判定损坏）；
 - **逐块补验 ECDSA 签名**（v0.3 阶段 B 起）：`block_hash` 按设计排除 `signature_bytes`，因此仅篡改签名的存档可过哈希校验；加载时用既有 `crypto_key.verify_block_signature` 逐块验签（创世块无签名跳过），签名不符即拒绝加载；
-- 用 `ChainStore.append_main` 按序重放主链：挖矿奖励、交易应用、纪元扫描全部走既有代码路径，确定性重建 **UTXO 账本、纪元快照与纪元摘要**（摘要生成/投票完全确定性，重放结果与保存前逐字段一致）；
+- 用 `ChainStore.append_main` 按序重放主链：挖矿奖励、交易应用、纪元扫描、**特性激活与语言快照**全部走既有代码路径，确定性重建 **UTXO 账本、纪元快照与纪元摘要、链级语言注册表与各高度 LanguageSnapshot**（摘要生成/投票完全确定性，重放结果与保存前逐字段一致；语言激活集不单独序列化，由主链 `activation` 字段重放重建——这是持久化 × 语言演化最关键的接缝，见 `tests/test_persistence_evolution.py`）；
 - 休眠分支经 `add_sleeping_branch` 回填并校验分支标识，不触碰账本/纪元。
 
 ### 为什么账本与快照采用「重建」而非「序列化」
@@ -55,7 +58,7 @@
 |---|---|
 | 首次启动（无存档） | 创世 + 预沉积 102 演示块，**立即落盘**（维持 v0.2 演示行为） |
 | 启动（有存档） | 加载并校验后继续，**不再预沉积**，主链高度与保存前一致 |
-| `python server.py --fresh` | 忽略存档，从创世重建演示链（回到 102）并覆盖存档（演示复位用） |
+| `python server.py --fresh` | 忽略存档，从创世重建演示链（回到 102）并覆盖存档（演示复位用）；**重建前若存在旧存档，先把旧文件重命名为 `<原名>.bak-<旧format_version>` 保留，不删除** |
 | 每次链状态变更（成功上链 / 候选入休眠分支） | 自动保存；保存失败打印中文警告，**不影响本次内存操作结果** |
 | `python server.py --export <path>` | 校验当前存档并导出到指定路径后退出（不启动服务） |
 | `python persistence.py export <path>` | 等价 CLI：`persistence.py` 自带的导出命令 |

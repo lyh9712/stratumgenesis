@@ -54,6 +54,9 @@ class Block:
     miner_pubkey: bytes = b""
     signature_bytes: bytes = b""
     transactions: tuple[Transaction, ...] | list[Transaction] = field(default_factory=tuple)
+    # 本区块激活的新语言原语名（来自 BUILTIN_POOL 的扩展特性）；
+    # 空元组表示普通区块（不改变语言能力）。
+    activation: tuple[str, ...] | list[str] = field(default_factory=tuple)
     # -1 是“未由调用方指定”的哨兵；正常构造时自动填充 height // 100。
     # 若调用方显式传入其他值，必须与计算结果一致，否则立即报错。
     epoch: int = -1
@@ -68,6 +71,7 @@ class Block:
                 f"epoch mismatch: height {self.height} requires epoch {expected_epoch}, got {self.epoch}"
             )
         object.__setattr__(self, "transactions", tuple(self.transactions))
+        object.__setattr__(self, "activation", tuple(self.activation))
         object.__setattr__(self, "block_hash", calculate_block_hash(self))
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -79,6 +83,7 @@ class Block:
             "miner_pubkey_hex": self.miner_pubkey.hex(),
             "prototype_version": self.prototype_version,
             "epoch": self.epoch,
+            "activation": list(self.activation),
             "transactions": [
                 {
                     "inputs": [

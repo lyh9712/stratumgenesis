@@ -75,6 +75,15 @@ def tokenize(source: str) -> list[Token]:
                 text += advance()
             tokens.append(Token("IDENTIFIER", text, start_line, start_column))
             continue
+        # 扩展原语名（符号形式）：- * % 单独出现时作为标识符；
+        # - 后跟数字的负整数字面量已在上方 INTEGER 分支处理。
+        if char in "-*%":
+            tokens.append(Token("IDENTIFIER", advance(), line, column - 1))
+            continue
+        # 整除原语 //：双字符符号标识符（与 ;; 行注释不冲突）。
+        if char == "/" and i + 1 < length and source[i + 1] == "/":
+            tokens.append(Token("IDENTIFIER", advance() + advance(), line, column - 2))
+            continue
         raise LexError(f"line {line}, column {column}: invalid character {char!r}")
 
     tokens.append(Token("EOF", "", line, column))

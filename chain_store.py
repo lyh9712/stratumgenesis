@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from block_model import Block, make_genesis_block
 from conflict_voter import VoteResult
 from epoch_manager import EpochManager
+from novscript.language import LanguageSnapshot
+from novscript.registry import BUILTIN_POOL, FeatureRegistry
 from utxo_ledger import UTXOLedger
 
 
@@ -23,12 +25,23 @@ class ChainStore:
     _sleeping_branches: tuple[tuple[str, tuple[Block, ...]], ...] = field(default_factory=tuple)
     utxo_ledger: UTXOLedger = field(default_factory=UTXOLedger, compare=False)
     epoch_manager: EpochManager = field(default_factory=EpochManager, compare=False)
+    # 链级语言注册表：主链已激活的全部扩展原语（休眠分支不修改它）。
+    language_registry: FeatureRegistry = field(default_factory=FeatureRegistry, compare=False)
+    # 主链高度 -> 该高度区块上链后的语言快照（版本化重放的权威依据）。
+    _language_snapshots: dict[int, LanguageSnapshot] = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
         if not self._main_chain:
             object.__setattr__(self, "_main_chain", (make_genesis_block(),))
         if self._main_chain[0].height != 0 or self._main_chain[0].parent_hash is not None:
             raise ValueError("main chain must start with genesis block")
+        # 创世高度也必须有语言快照（空特性集）：语言演化链条从创世块起，
+        # 保证「每个主链高度都能版本化重放」这一不变量。
+        if not self._language_snapshots:
+            object.__setattr__(
+                self, "_language_snapshots",
+                {0: LanguageSnapshot.from_registry(self.language_registry, 0)},
+            )
 
     @property
     def tip(self) -> Block:
@@ -55,7 +68,12 @@ class ChainStore:
         return self.get_block(block_hash) is not None
 
     def append_main(self, block: Block) -> None:
-        """受控追加主链区块；不接受错误父节点或重复区块。"""
+        """受控追加主链区块；不接受错误父节点或重复区块。
+
+        追加成功后，若区块携带 activation，将其中每个原语注册进链级注册表
+        （调用方应已通过 BlockValidator 的 8 步校验；这里只做防御性一致性检查），
+        并为该高度生成语言快照。休眠分支不会走到这里。
+        """
         if block.parent_hash != self.tip.block_hash or block.height != self.tip.height + 1:
             raise ValueError("block does not connect to current main-chain tip")
         if self.contains(block.block_hash):
@@ -65,9 +83,45 @@ class ChainStore:
         object.__setattr__(self, "_main_chain", self._main_chain + (block,))
         self.utxo_ledger.apply_block_rewards(block)
         self.utxo_ledger.apply_transactions(block.transactions)
+        # 语言演化：把本块激活的原语注册进链级注册表，并记录语言快照。
+        for name in block.activation:
+            spec = BUILTIN_POOL.get(name)
+            if spec is None:
+                raise ValueError(f"cannot activate unknown feature: {name}")
+            try:
+                self.language_registry.register(spec)
+            except Exception as error:
+                raise ValueError(f"cannot activate feature {name}: {error}") from error
+        object.__setattr__(
+            self, "_language_snapshots",
+            {**self._language_snapshots, block.height: LanguageSnapshot.from_registry(
+                self.language_registry, block.height)},
+        )
         # 只有主链追加触发纪元扫描；休眠分支的 epoch 只由区块自身计算，
         # 不会生成或改变主链纪元快照。
         self.epoch_manager.scan_chain(self._main_chain)
+
+    def language_snapshot_at(self, height: int) -> LanguageSnapshot | None:
+        """返回指定高度区块上链后的语言快照；未知高度返回 None。"""
+        return self._language_snapshots.get(height)
+
+    def current_language_snapshot(self) -> LanguageSnapshot:
+        """返回当前主链顶端的语言快照（含创世块：仅内核，无扩展特性）。"""
+        snapshot = self._language_snapshots.get(self.height)
+        if snapshot is not None:
+            return snapshot
+        return LanguageSnapshot(height=self.height, active_features=frozenset())
+
+    def branch_active_features(self, branch_id: str) -> frozenset[str]:
+        """休眠分支自身的额外激活集（分支内区块 activation 的累积）。
+
+        不包含主链已激活特性；作为分支级语言演化的基础数据。
+        """
+        branch = self._branch_map().get(branch_id, ())
+        features: set[str] = set()
+        for block in branch:
+            features.update(block.activation)
+        return frozenset(features)
 
     def add_sleeping_branch(self, block: Block) -> str:
         """保存休眠分支候选，不改变主链。"""

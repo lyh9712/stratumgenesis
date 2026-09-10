@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 from .ast import Bind, Call, Expr, IntLiteral, Lambda, Program, Symbol
@@ -19,10 +19,15 @@ class LimitsState:
 
     max_steps: int
     max_heap_objects: int
+    max_output_chars: int = 4_096
     steps: int = 0
     heap_objects: int = 0
     call_depth: int = 0
     max_call_depth: int = 1_000
+    # echo 等输出类原语写入的缓冲区；沙箱结束时会聚合成 EvalResult.output。
+    output_buffer: list[str] = field(default_factory=list)
+    # 已写入输出缓冲区的累计字符数（强制输出上限的计账字段）。
+    output_chars: int = 0
 
     def step(self) -> None:
         self.steps += 1
@@ -33,6 +38,18 @@ class LimitsState:
         self.heap_objects += count
         if self.heap_objects > self.max_heap_objects:
             raise ResourceLimitError("maximum heap objects exceeded")
+
+    def append_output(self, text: str) -> None:
+        """向输出缓冲区写入一行文本，并累计字符数。
+
+        累计超过 max_output_chars 时抛 ResourceLimitError（纳入既有 8 类
+        结构化错误，不新增错误类型），保证 echo 等输出原语无法无限撑爆
+        沙箱结果。
+        """
+        self.output_chars += len(text)
+        if self.output_chars > self.max_output_chars:
+            raise ResourceLimitError("maximum output characters exceeded")
+        self.output_buffer.append(text)
 
 
 @dataclass
@@ -115,7 +132,45 @@ class InternalNil:
     """解释器内部的空结果标记，不作为 NovScript 公共类型暴露。"""
 
 
-Value = int | Closure | Builtin | InternalNil
+@dataclass(frozen=True)
+class Pair:
+    """列表/对值：扩展原语 list/cons/head/tail 等操作的底层表示。"""
+
+    left: "Value"
+    right: "Value"
+
+
+Value = int | Closure | Builtin | InternalNil | Pair
+
+
+def display_value(value: Value) -> str:
+    """把值转成可读字符串（供 echo 原语与沙箱展示使用）。
+
+    - 整数 -> 十进制文本；nil -> "nil"；
+    - Pair -> 尽量按 proper list 形式输出 "(1 2 3)"，不闭合的链按 "(1 . 2)"；
+    - Closure/Builtin -> 各自的一等值标签。
+
+    右链（长列表）用迭代展开，不随列表长度递归；left 侧的深嵌套受
+    parser 递归深度天然限制，残余宿主递归由沙箱防御层兜底映射。
+    """
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    if isinstance(value, InternalNil):
+        return "nil"
+    if isinstance(value, Pair):
+        items: list[str] = []
+        cursor: Value = value
+        while isinstance(cursor, Pair):
+            items.append(display_value(cursor.left))
+            cursor = cursor.right
+        if isinstance(cursor, InternalNil):
+            return "(" + " ".join(items) + ")"
+        return "(" + " ".join(items) + " . " + display_value(cursor) + ")"
+    if isinstance(value, Closure):
+        return "#<closure>"
+    if isinstance(value, Builtin):
+        return f"#<builtin:{value.name}>"
+    return "#<unknown>"
 
 
 def _plus(arguments: list[Thunk], state: LimitsState) -> Value:
@@ -127,10 +182,19 @@ def _plus(arguments: list[Thunk], state: LimitsState) -> Value:
     return values[0] + values[1]
 
 
-def initial_environment(state: LimitsState) -> Environment:
-    """创建每次运行都独立的新创世环境。"""
+def initial_environment(state: LimitsState, registry=None) -> Environment:
+    """创建每次运行都独立的新创世环境。
+
+    registry：可选 FeatureRegistry。为 None 时只加载创世内核（+ 加法），
+    行为与语言演化改造前完全一致；传入注册表时，把其中已激活的扩展原语
+    一并注册进环境（同名与内核冲突在注册阶段已由 FeatureRegistry 拒绝）。
+    """
     state.allocate()
-    return Environment({"+": ValueBinding(Builtin("+", _plus))})
+    bindings: dict[str, Binding] = {"+": ValueBinding(Builtin("+", _plus))}
+    if registry is not None:
+        for spec in registry.all_specs():
+            bindings[spec.name] = ValueBinding(Builtin(spec.name, spec.impl))
+    return Environment(bindings)
 
 
 def evaluate_expr(expression: Expr, environment: Environment, state: LimitsState) -> Value:
@@ -179,8 +243,8 @@ def apply_value(function: Value, arguments: list[Thunk], state: LimitsState) -> 
         state.call_depth -= 1
 
 
-def evaluate_program(program: Program, state: LimitsState) -> Value:
-    environment = initial_environment(state)
+def evaluate_program(program: Program, state: LimitsState, registry=None) -> Value:
+    environment = initial_environment(state, registry)
     result: Value = InternalNil()
     for expression in program.expressions:
         state.step()

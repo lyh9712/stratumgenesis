@@ -33,7 +33,9 @@ from crypto_key import verify_block_signature
 from utxo_model import Transaction, UTXO
 
 # 存档格式版本：后续演进时递增，旧版本存档将被拒绝加载（需 --fresh 重建）。
-FORMAT_VERSION = "chain-v1"
+# chain-v2：区块新增 activation 字段（语言演化），旧 chain-v1 存档无法兼容
+# （canonical_bytes 变化导致哈希/签名失效），需 python server.py --fresh 重建。
+FORMAT_VERSION = "chain-v2"
 
 # 存档文件默认名（相对项目根目录）。
 DEFAULT_ARCHIVE_NAME = "chain_v1.json"
@@ -114,6 +116,7 @@ def _block_to_dict(block: Block) -> dict:
         "signature_bytes_b64": _b64e(block.signature_bytes),
         "epoch": block.epoch,
         "block_hash": block.block_hash,
+        "activation": list(block.activation),
         "proposal": {
             "kind": block.proposal.kind,
             "feature_id": block.proposal.feature_id,
@@ -187,6 +190,7 @@ def _block_from_dict(data: dict) -> Block:
             miner_pubkey=_b64d(data["miner_pubkey_b64"]),
             signature_bytes=_b64d(data["signature_bytes_b64"]),
             transactions=transactions,
+            activation=tuple(str(item) for item in data["activation"]),
             epoch=int(data["epoch"]),
         )
     except (KeyError, TypeError, ValueError) as error:
@@ -288,8 +292,11 @@ def load_state(path: str) -> dict:
     if not isinstance(data, dict) or data.get("format_version") != FORMAT_VERSION:
         actual = data.get("format_version") if isinstance(data, dict) else "未知"
         raise PersistenceError(
-            f"存档格式版本不匹配：期望 {FORMAT_VERSION}，实际 {actual}。"
-            f"如需忽略存档重建演示链，请使用 python server.py --fresh"
+            f"存档格式版本不匹配：期望 {FORMAT_VERSION}，实际 {actual}（{path}）。"
+            f"原存档未被修改。若想保留旧档、在别处重建演示链，"
+            f"请改用 python server.py --archive <新存档路径>；"
+            f"若确要覆盖此文件重建，请使用 python server.py --fresh"
+            f"（重建前旧档会被保留为 {path}.bak-{actual}）"
         )
     required = ("blocks", "sleeping_branches", "miners", "rejection_reasons")
     if any(key not in data for key in required):
@@ -303,6 +310,41 @@ def load_state(path: str) -> dict:
             block = _block_from_dict(entry)
             _verify_block_signature(block)
     return data
+
+
+def backup_old_archive(path: str) -> str | None:
+    """把已存在的存档重命名为 `<原名>.bak-<旧format_version>` 保留（不删除）。
+
+    - 文件不存在：返回 None，不做任何事；
+    - 旧档的 format_version 可读则用于后缀，读不到（损坏/非 JSON）用 "unknown"；
+    - 若同名 .bak 已存在（重复执行 --fresh），改用序号后缀 `.bak-<version>.1`，
+      绝不覆盖既有备份；
+    - 返回生成的备份路径；重命名失败抛 PersistenceError（不静默吞掉）。
+    """
+    if not os.path.exists(path):
+        return None
+    version = "unknown"
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        if isinstance(data, dict) and isinstance(data.get("format_version"), str):
+            version = data["format_version"]
+    except (OSError, json.JSONDecodeError):
+        pass
+    backup_path = f"{path}.bak-{version}"
+    if os.path.exists(backup_path):
+        index = 1
+        while True:
+            candidate = f"{path}.bak-{version}.{index}"
+            if not os.path.exists(candidate):
+                backup_path = candidate
+                break
+            index += 1
+    try:
+        os.replace(path, backup_path)
+    except OSError as error:
+        raise PersistenceError(f"旧存档备份失败（{path} -> {backup_path}）：{error}") from error
+    return backup_path
 
 
 def rebuild_store(

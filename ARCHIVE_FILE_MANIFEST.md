@@ -24,11 +24,11 @@
 
 | 文件 | 用途 |
 |---|---|
-| `persistence.py` | v0.3 新增：确定性 JSON 存档/加载/导出（format_version=chain-v1），原子写入、哈希+签名校验、账本与纪元快照重放重建 |
+| `persistence.py` | v0.3 新增：确定性 JSON 存档/加载/导出（format_version=chain-v2；v0.3 阶段 C 因区块新增 `activation` 字段、canonical 序列化变化而由 chain-v1 升级，旧档加载被拒），原子写入、哈希+签名校验、账本/纪元快照/语言注册表重放重建 |
 | `epoch_summary.py` | v0.3 阶段 B 新增：mock 纪元摘要——确定性规则模板（keyword-top/contributor-distribution/first-last-narrative）+ 历史贡献加权投票 + 平票确定性回退 |
 | `block_model.py` | 不可变区块数据模型：`Block`/`Proposal`/`PoiRecord`/`TestCase`，SHA256 区块哈希、`canonical_bytes()`、创世块构造 |
 | `mock_tokenizer.py` | PoI mock 标准分词器：确定性词元计数（`mock-tokenizer-v1`），不调用外部模型 |
-| `block_validator.py` | 6 阶段区块合法性校验流水线（签名→结构→内核→PoI→解析→沙箱→UTXO），返回 `ValidationResult` |
+| `block_validator.py` | 9 检查阶段区块校验流水线（签名→结构→内核→PoI→解析→特性激活→沙箱→语言正负测试→UTXO，v0.3 阶段 C 起），返回 `ValidationResult` |
 | `candidate_pool.py` | 候选区块池：按（父区块哈希，目标高度）分组，只接收已通过校验的候选 |
 | `weight_calculator.py` | 历史贡献权重计算：仅遍历主链，按 miner_pubkey 累加 `standard_total_tokens` |
 | `conflict_voter.py` | 冲突加权投票：单候选直通、多候选按权重计票、平票标记（winner=None） |
@@ -73,9 +73,12 @@
 | `tests/test_utxo.py` | 6 | 奖励、转账、双花、错误签名、超额输出、休眠分支隔离 |
 | `tests/test_epoch.py` | 6 | 纪元编号、构造校验、99/100 边界、归档快照、休眠分支 |
 | `tests/test_http_api.py` | 8 | HTTP API 端到端：chain-state/propose/eval/index.html |
-| `tests/test_persistence.py` | 8 | v0.3 新增：存档 roundtrip 等值、HTTP 一致性、损坏拒绝、--fresh、导出 |
+| `tests/test_persistence.py` | 11 | v0.3 新增：存档 roundtrip 等值、HTTP 一致性、损坏拒绝、--fresh、导出、旧存档 .bak 保留/不覆盖/拒绝加载不触碰原文件（收尾 E 追加 3 项） |
 | `tests/test_epoch_summary.py` | 10 | v0.3 阶段 B：边界触发、确定性、历史权重、平票回退、finalized 不可变、休眠分支无摘要、chain-state 追加字段、save→load 摘要一致、篡改签名拒绝 |
-| **合计** | **90** | 全部通过 |
+| `tests/test_evolution.py` | 12 | v0.3 阶段 C：注册后可调用、未激活 NameError、激活名校验、重复激活拒绝、正负测试、历史块版本化重放、休眠分支隔离 |
+| `tests/test_sandbox_limits.py` | 4 | v0.3 阶段 C 收尾：输出上限超限 ResourceLimitError / 恰好等于上限成功；长列表不泄露宿主递归 / 宿主递归稳定归类 |
+| `tests/test_persistence_evolution.py` | 1 | v0.3 阶段 C 收尾 F：save→load+rebuild 后高度/哈希、逐高度语言快照、激活能力可用、未激活高度 NameError 全一致 |
+| **合计** | **110** | 全部通过 |
 
 ## 五、归档文档（本次新增，均为 Markdown）
 
@@ -89,6 +92,18 @@
 | `CHANGELOG_v0_3.md` | v0.3 版本变更日志（阶段 A：git 基线 + 磁盘持久化） |
 | `PERSISTENCE_IMPLEMENTATION.md` | v0.3 持久化实现说明：格式、恢复策略、私钥安全边界、已知限制 |
 | `EPOCH_SUMMARY_IMPLEMENTATION.md` | v0.3 阶段 B：mock 纪元摘要实现说明（模板/投票/确定性重放/未来 LLM 替换点/风险提示） |
+
+### 1.4 v0.3 阶段 C 语言演化追加登记
+
+| 文件 | 用途 |
+|---|---|
+| `novscript/registry.py` | 特性注册表：`PrimitiveSpec`/`FeatureRegistry`/`BUILTIN_POOL`（15 预置原语）/`KERNEL_PRIMITIVES` 内核守卫 |
+| `novscript/language.py` | 语言快照：`LanguageSnapshot` + `from_registry`/`build_registry` 版本化重建 |
+| `demo_evolution.py` | 语言演化端到端演示：激活 `-`/`list`、历史块版本化重放、重复激活拒绝 |
+| `tests/test_evolution.py` | 12 项语言演化回归（见四节） |
+| `tests/test_sandbox_limits.py` | 4 项输出上限与递归归类回归（见四节） |
+| `tests/test_persistence_evolution.py` | 1 项持久化×语言演化耦合回归（见四节） |
+| `EVOLUTION_IMPLEMENTATION.md` | 阶段 C 实现说明：设计图、9 检查阶段表、正负测试原理、变更清单 |
 
 ## 六、历史设计文档（保留供参考）
 

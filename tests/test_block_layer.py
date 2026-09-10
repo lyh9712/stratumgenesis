@@ -1,4 +1,4 @@
-"""StratumGenesis 最小区块层原型测试。"""
+﻿"""StratumGenesis 最小区块层原型测试。"""
 
 import unittest
 
@@ -66,7 +66,7 @@ class BlockLayerTests(unittest.TestCase):
         block = self.make_block()
         result = validate_block(block, self.store)
         self.assertTrue(result.accepted, result)
-        self.assertEqual(result.checked_stages, ("signature", "structure", "kernel_compatibility", "poi", "parse", "sandbox", "utxo"))
+        self.assertEqual(result.checked_stages, ("signature", "structure", "kernel_compatibility", "poi", "parse", "activation", "sandbox", "language_evolution", "utxo"))
         self.store.append_main(block)
         self.assertEqual(self.store.height, 1)
         self.assertEqual(self.store.tip.block_hash, block.block_hash)

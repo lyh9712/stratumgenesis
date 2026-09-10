@@ -191,8 +191,22 @@
 
 ### 快捷命令（监督复验用）
 ```bash
-python -m unittest discover -s tests -v        # 全量测试
-python -m compileall -q *.py tests/*.py        # 字节码编译检查
-python server.py                               # 启动（端口 28417）
-netstat -ano | findstr 28417                   # 查占用，先停旧进程再测
+python -m unittest discover -s tests          # 全量测试
+python -m compileall -q .                     # 字节码编译检查（PowerShell 下不要用 *.py 通配符）
+python server.py                              # 启动（端口 28417）
+netstat -ano | findstr 28417                  # 查占用，先停旧进程再测
 ```
+
+---
+
+## 附：阶段 C（语言演化）验收补丁清单 —— 监督者独立检查发现（2026-09-10）
+
+以下问题为监督者复核阶段 A/B 与未提交的演化改动时**实测复现**，建议随阶段 C 一并修复并补测试：
+
+1. **【P1】`SandboxLimits.max_output_chars` 声明但未强制**：`novscript/sandbox.py` 仅在 `_validate_limits` 中校验其类型与正数，`LimitsState` 不接收该值，`echo` 原语（`novscript/registry.py` 的 `_impl_echo`）无上限追加 `state.output_buffer`，`evaluate()` 直接 `"\n".join(...)`。实测：500 条 `(echo 1234567890)` 产出 **5499 字符**，超出声明的 4096 上限。修法建议：把 `max_output_chars` 传入 `LimitsState`，在写入处累计字符数、超限即 `ResourceLimitError`；补回归测试断言上限生效。
+2. **【P2】宿主递归泄漏为 `SandboxError`**：`_public_value`/`display_value` 对 `Pair` 递归展开。实测 `(list 1 … 1)`（2000 个元素）返回 `ok=False, error_type=SandboxError, msg="maximum recursion depth exceeded"` —— 这是宿主（Python）级的递归错误被兜底 `except Exception` 捕获后当作沙箱错误上报，违反「只返回稳定类型与诊断文字」的规范。修法建议：改为迭代展开，或捕获 `RecursionError` 并映射为 `ResourceLimitError("maximum structure depth exceeded")`；补一条长列表用例。
+3. **【P2】`PrimitiveSpec.arity` 为装饰性字段**：`novscript/registry.py` 中全部规格都写 `arity=(0, None)`，且全项目无任何读取点（实际 arity 由各实现自查）。建议要么填真实 arity 并在激活/调用处校验，要么删掉该字段，避免未来校验逻辑误信。
+4. **【P2】文档漂移**：
+   - `PERSISTENCE_IMPLEMENTATION.md` 第 19、29 行仍写 `format_version=chain-v1`，实际已是 `chain-v2`；`ARCHIVE_FILE_MANIFEST.md` 第 27 行同样仍写 `chain-v1`。
+   - `BLOCK_LAYER_PROTOTYPE_IMPLEMENTATION.md` 仍称「五阶段校验」，实际流水线已是 9 个检查阶段（signature → structure → kernel_compatibility → poi → parse → **activation** → sandbox → **language_evolution** → utxo）。
+5. **【P2】旧存档处置建议**：`chain-v1` 存档现被正确拒绝（实测报「存档格式版本不匹配：期望 chain-v2，实际 chain-v1」并 exit 1），但提示语引导使用 `--fresh`，而 `--fresh` 会**覆盖**旧存档、不可逆。建议：拒绝时先提示改用 `--archive <新路径>`，或在 fresh 重建前把旧档案重命名为 `chain_v1.json.bak`；如实现 `--migrate`（按新 canonical 重新计算哈希/签名），需在文档中明确「迁移会改变区块哈希」。

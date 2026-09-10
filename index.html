@@ -845,7 +845,10 @@ document.getElementById("sb-run").addEventListener("click", async ()=>{
    --------------------------------------------------------------------------
    展示「语言会演化、每 100 高度会失忆」这一核心叙事。
    权威数据 = GET /chain-state 的 blocks[].activation 与 blocks[].language_features；
-   epochs[] / 顶层聚合字段为增强数据，缺失或为空一律就地推导，不报错、不白屏。
+   顶层 current_active_features 的名字 deprecated，但值语义即「当前纪元内有效」，用于
+   「当前纪元已激活原语」第一优先；current_epoch_base_features / cumulative_active_features
+   为增强数据；epochs[].active_features 是逐纪元字段（纪元内有效），不用于推导「当前」。
+   所有字段缺失或为空一律就地推导，不报错、不白屏。
    本模块只新增函数与 DOM，不触碰任何既有 id / class。
    ========================================================================== */
 
@@ -938,13 +941,24 @@ function blockFeatures(state, b){
   return acc;
 }
 
-/* 当前纪元已激活原语：current_epoch_active_features → 链顶块快照 → 历史累计字段 → 自行推导 */
+/* 当前纪元已激活原语（v0.3 阶段 D 契约，按优先级降级）：
+ * ① current_active_features —— 名字 deprecated，但值语义已是「当前纪元内有效」，第一优先；
+ * ② 链顶块 language_features —— 该高度当时可用集（纪元作用域）；
+ * ③ cumulative_active_features —— 历史累计（仅兜底参考，语义为「曾经激活过」）；
+ * ④ 按 blocks[].activation 沿主链自行推导（最后兜底，缺字段不报错、不白屏）。
+ */
 function currentEpochFeatures(state){
-  const direct = firstArr(state.current_epoch_active_features);
+  const direct = firstArr(state.current_active_features);
   if(direct) return new Set(direct);
   const tip = tipBlock(state);
   if(tip) return new Set(blockFeatures(state, tip));
-  return new Set(firstArr(state.current_active_features) || []);
+  const cumulative = firstArr(state.cumulative_active_features);
+  if(cumulative) return new Set(cumulative);
+  const acc = [];
+  state.blocks.forEach(x=>{
+    (Array.isArray(x.activation) ? x.activation : []).forEach(n=>{ if(acc.indexOf(n) < 0) acc.push(n); });
+  });
+  return new Set(acc);
 }
 
 function currentEpochEn(state){
@@ -961,12 +975,10 @@ function prevEpochEndSet(state, en){
   return new Set(blockFeatures(state, blocks[blocks.length-1]));
 }
 
-/* 纪元开篇集：优先 epoch_base_features；否则用首块快照减去首块自身新沉积的 activation */
+/* 纪元开篇可用集：以首块快照为准（含首块自身引种），增强字段 epoch_base_features 与之取并集 */
 function deriveBaseSet(state, en, first){
   if(!first) return new Set();
-  const set = new Set(blockFeatures(state, first));
-  (Array.isArray(first.activation) ? first.activation : []).forEach(n=>set.delete(n));
-  return set;
+  return new Set(blockFeatures(state, first));
 }
 
 function epochOpeningInfo(state, en){
@@ -975,7 +987,9 @@ function epochOpeningInfo(state, en){
   const first = blocks.length ? blocks[0] : null;
   const act = first ? first.activation : [];
   const snapBase = snap ? firstArr(snap.epoch_base_features) : null;
-  const base = snapBase ? new Set(snapBase) : deriveBaseSet(state, en, first);
+  const base = deriveBaseSet(state, en, first);
+  /* 增强字段存在且非空时并入（权威字段 blocks[] 仍为准） */
+  if(snapBase) snapBase.forEach(n=>base.add(n));
   const prev = blocks.length ? prevEpochEndSet(state, en) : null;
   const lost = prev ? [...prev].filter(n=>!base.has(n)) : [];
   return {
@@ -1045,11 +1059,22 @@ function epochOpenBand(state, en, archived){
   const listOr = (arr, emptyText)=> arr.length
     ? '<span class="eo-names">'+esc(arr.join("、"))+'</span>'
     : '<span class="empty">'+esc(emptyText)+'</span>';
+  /* 本纪元内后续引种（非开篇时刻）：让「开篇引种 0，但纪元中途引种了 N 个」也一目了然 */
+  const inEpoch = [];
+  blocksOfEpoch(state, en).forEach(b=>b.activation.forEach(n=>{
+    if(inEpoch.indexOf(n) < 0) inEpoch.push({name: n, height: b.height});
+  }));
+  const midEpoch = inEpoch.filter(x=>!info.base.has(x.name) && info.introduced.indexOf(x.name) < 0);
+  const midLine = midEpoch.length
+    ? '<div class="eo-line">本纪元中途引种 '+midEpoch.length+' 个：'+
+      '<span class="eo-names">'+esc(midEpoch.map(x=>x.name+"（H"+x.height+"）").join("、"))+'</span></div>'
+    : "";
 
   if(en === 0){
     band.innerHTML =
       '<div class="eo-title">第 0 纪元开篇 · <b>创世内核</b></div>'+
       '<div class="eo-line">开篇可用 '+listOr(["+"], "无")+'（NovScript 内核恒定提供加法）；无上一纪元，不存在失忆。</div>'+
+      midLine+
       '<div class="eo-meta">H'+info.range.start+'–H'+info.range.end+' · '+info.blockCount+' 块'+(archived?" · 已归档":"")+'</div>';
     return band;
   }
@@ -1060,8 +1085,9 @@ function epochOpenBand(state, en, archived){
   band.innerHTML =
     '<div class="eo-title">'+line+'</div>'+
     (info.lost.length ? '<div class="eo-line">失忆原语：'+listOr(info.lost, "")+'</div>' : "")+
-    '<div class="eo-line">开篇可用原语 '+info.base.size+' 个'+(info.base.size ? "："+listOr([...info.base].sort(), "") : "")+'</div>'+
-    '<div class="eo-meta">H'+info.range.start+'–H'+info.range.end+' · '+info.blockCount+' 块 · 引种数取首块 activation / epoch_base_features，失忆数 = 上一纪元末可用集 − 本纪元开篇集</div>';
+    '<div class="eo-line">开篇引种后可用原语 '+info.base.size+' 个'+(info.base.size ? "："+listOr([...info.base].sort(), "") : "")+'</div>'+
+    midLine+
+    '<div class="eo-meta">H'+info.range.start+'–H'+info.range.end+' · '+info.blockCount+' 块 · 引种数取首块 activation / epoch_base_features，失忆数 = 上一纪元末可用集 − 本纪元开篇可用集</div>';
   return band;
 }
 
@@ -1289,7 +1315,10 @@ function parseEpochFromMessage(text){
 
 function pickMissingName(raw){
   if(!raw) return null;
-  const name = String(raw).replace(/^[-'"“”‘’]+/, "").replace(/[-'"“”‘’,;.)）]+$/, "");
+  /* 只剥掉包裹用的引号/括号，不要剥掉名字本身的 -（- 是预置池里的合法原语名） */
+  const name = String(raw).trim()
+    .replace(/^[「『"'“”‘’(\[]+/, "")
+    .replace(/[」』"'“”‘’)\]。，,;；、]+$/, "");
   if(!name) return null;
   if(PRIMITIVE_POOL[name]) return name;
   if(chainState && featureTimeline(chainState).has(name)) return name;
@@ -1307,7 +1336,10 @@ function detectUnimported(resp){
   /* 当前后端对未引种原语报的是 unbound name：仅当名字确实属于预置池才提示，
      避免把用户自己的拼写错误误报成「失忆」 */
   const soft = msg.match(/unbound name:\s*([^\s,;]+)/i);
-  if(soft) return {strong: false, name: pickMissingName(soft[1])};
+  if(soft){
+    const softName = pickMissingName(soft[1]);
+    if(softName) return {strong: false, name: softName};
+  }
   return null;
 }
 

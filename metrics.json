@@ -1,0 +1,360 @@
+{
+  "by_model": {
+    "collaboration": {
+      "miners_with_multiple_models": [],
+      "models_used_by_multiple_miners": [
+        {
+          "miner_count": 3,
+          "miners": [
+            "LyS3ZO4tMeitD0aLfzbpqzr7iI7CIfUYrcV2bENecy2t6uIVMTADbouXKOf1KBfe2s/3EM6XEM98rGb99Go0Gg==",
+            "ah2RzGYc1PwgXPeE7ouvcOKqRrnbsaev0Cgbh8b59usX5NUfFD9ptfyQtMA1hCAhGhSa7WhNbxb7qBqeAN0F/Q==",
+            "dX/EyX3DisKj3065EupMD2WazKq2yuzYo2Mu8XoC+jw1eNBLI9OVWdiS6WFQsD/Y1QZP/i8APfuoB2tbfO0j8Q=="
+          ],
+          "model_id": "manual-mock"
+        }
+      ],
+      "multi_miner_model_count": 1,
+      "multi_model_miner_count": 0
+    },
+    "derived_from": [
+      "blocks[].poi.model_metadata",
+      "blocks[].activation",
+      "blocks[].height",
+      "height // 100",
+      "sleeping_branches[].blocks[].poi.model_metadata"
+    ],
+    "models": [
+      {
+        "acceptance": {
+          "acceptance_rate": 1.0,
+          "accepted_to_main": 102,
+          "main_chain_blocks": 102,
+          "proposals": 102,
+          "rejected_to_sleeping_branch": 0,
+          "sleeping_branch_blocks": 0
+        },
+        "combination_novelty": {
+          "combinations_first_activated": [],
+          "non_novel_count": 0,
+          "novel_count": 0
+        },
+        "miner_count": 3,
+        "miners": [
+          {
+            "label": "地层匠·沧石",
+            "miner_pubkey_b64": "LyS3ZO4tMeitD0aLfzbpqzr7iI7CIfUYrcV2bENecy2t6uIVMTADbouXKOf1KBfe2s/3EM6XEM98rGb99Go0Gg=="
+          },
+          {
+            "label": "沉积者·阿砚",
+            "miner_pubkey_b64": "ah2RzGYc1PwgXPeE7ouvcOKqRrnbsaev0Cgbh8b59usX5NUfFD9ptfyQtMA1hCAhGhSa7WhNbxb7qBqeAN0F/Q=="
+          },
+          {
+            "label": "化石刻工·临渊",
+            "miner_pubkey_b64": "dX/EyX3DisKj3065EupMD2WazKq2yuzYo2Mu8XoC+jw1eNBLI9OVWdiS6WFQsD/Y1QZP/i8APfuoB2tbfO0j8Q=="
+          }
+        ],
+        "model_id": "manual-mock",
+        "primitive_preference": {
+          "activation_blocks": 0,
+          "primitives": {},
+          "top_primitives": []
+        },
+        "retention": {
+          "feature_count": 0,
+          "features": [],
+          "features_first_activated": [],
+          "half_life_epochs": null,
+          "mean_span_epochs": null,
+          "reintroduction_events": 0,
+          "sample_size_warning": true,
+          "span_epochs_max": null,
+          "span_epochs_min": null
+        }
+      }
+    ],
+    "sample_size_warning_threshold": 5,
+    "scope": {
+      "acceptance": "主链非创世块（接受）+ 休眠分支区块（落选）；创世块不计提案",
+      "collaboration": "仅主链矿工-模型挂载关系",
+      "genesis_excluded": true,
+      "language_metrics": "仅主链 blocks[].activation（休眠分支不参与留存/偏好/新颖度）"
+    }
+  },
+  "chain": {
+    "epoch_count": 2,
+    "main_chain_blocks": 103,
+    "total_height": 102
+  },
+  "chain_consensus": {
+    "epoch_count": 2,
+    "epochs": [
+      {
+        "activations": 0,
+        "blocks": 100,
+        "end_height": 99,
+        "epoch": 0,
+        "expected_blocks": 100,
+        "is_full": true,
+        "start_height": 0
+      },
+      {
+        "activations": 0,
+        "blocks": 3,
+        "end_height": 102,
+        "epoch": 1,
+        "expected_blocks": 100,
+        "is_full": false,
+        "start_height": 100
+      }
+    ],
+    "main_chain_blocks": 103,
+    "miners": {
+      "by_miner": [
+        {
+          "avg_tokens_per_block": 86.5,
+          "blocks": 34,
+          "blocks_with_activation": 0,
+          "genesis_blocks": 0,
+          "miner": "化石刻工·临渊",
+          "public_key_b64": "dX/EyX3DisKj3065EupMD2WazKq2yuzYo2Mu8XoC+jw1eNBLI9OVWdiS6WFQsD/Y1QZP/i8APfuoB2tbfO0j8Q==",
+          "registered_in_archive": true,
+          "share_of_total_tokens": 0.3777292576419214,
+          "standard_total_tokens": 2941
+        },
+        {
+          "avg_tokens_per_block": 73.0,
+          "blocks": 34,
+          "blocks_with_activation": 0,
+          "genesis_blocks": 0,
+          "miner": "地层匠·沧石",
+          "public_key_b64": "LyS3ZO4tMeitD0aLfzbpqzr7iI7CIfUYrcV2bENecy2t6uIVMTADbouXKOf1KBfe2s/3EM6XEM98rGb99Go0Gg==",
+          "registered_in_archive": true,
+          "share_of_total_tokens": 0.31877729257641924,
+          "standard_total_tokens": 2482
+        },
+        {
+          "avg_tokens_per_block": 69.5,
+          "blocks": 34,
+          "blocks_with_activation": 0,
+          "genesis_blocks": 0,
+          "miner": "沉积者·阿砚",
+          "public_key_b64": "ah2RzGYc1PwgXPeE7ouvcOKqRrnbsaev0Cgbh8b59usX5NUfFD9ptfyQtMA1hCAhGhSa7WhNbxb7qBqeAN0F/Q==",
+          "registered_in_archive": true,
+          "share_of_total_tokens": 0.3034934497816594,
+          "standard_total_tokens": 2363
+        },
+        {
+          "avg_tokens_per_block": 0.0,
+          "blocks": 1,
+          "blocks_with_activation": 0,
+          "genesis_blocks": 1,
+          "miner": "矿工(Z2VuZXNp…)",
+          "public_key_b64": "Z2VuZXNpcw==",
+          "registered_in_archive": false,
+          "share_of_total_tokens": 0.0,
+          "standard_total_tokens": 0
+        }
+      ],
+      "count": 4
+    },
+    "proposal_success_rate": {
+      "accepted_to_main": 102,
+      "branch_blocks_total": 0,
+      "proposals_submitted": 102,
+      "rate_main": 1.0,
+      "rate_sleeping_branch": 0.0,
+      "rejected_to_branch": 0
+    },
+    "rejection_reason_counts": {},
+    "sleeping_branch_block_total": 0,
+    "sleeping_branch_count": 0,
+    "sleeping_branches": [],
+    "total_height": 102,
+    "voting_weight_distribution": {
+      "max": 2941,
+      "method": "sum(blocks[].poi.standard_total_tokens) 按 blocks[].miner_pubkey_b64 分组；仅主链计入",
+      "min": 2363,
+      "p50": 2482.0,
+      "p90": 2849.2,
+      "rows": [
+        {
+          "miner": "化石刻工·临渊",
+          "share": 0.3777292576419214,
+          "voting_weight": 2941
+        },
+        {
+          "miner": "地层匠·沧石",
+          "share": 0.31877729257641924,
+          "voting_weight": 2482
+        },
+        {
+          "miner": "沉积者·阿砚",
+          "share": 0.3034934497816594,
+          "voting_weight": 2363
+        },
+        {
+          "miner": "矿工(Z2VuZXNp…)",
+          "share": 0.0,
+          "voting_weight": 0
+        }
+      ],
+      "top_miner_share": 0.3777292576419214,
+      "total_weight": 7786
+    }
+  },
+  "chain_height": 102,
+  "field_provenance": {
+    "avoided_fields": [
+      "blocks[].epoch",
+      "epochs[].active_features",
+      "current_active_features",
+      "language_features",
+      "blocks[].proposal.kind",
+      "blocks[].proposal.feature_id",
+      "summary_chain",
+      "miner_label",
+      "reason"
+    ],
+    "derived_from": [
+      "blocks[].activation",
+      "blocks[].height",
+      "blocks[].poi.standard_input_tokens",
+      "blocks[].poi.standard_output_tokens",
+      "blocks[].poi.standard_total_tokens",
+      "blocks[].poi.standard_tokenizer",
+      "blocks[].poi.model_metadata",
+      "blocks[].transactions",
+      "blocks[].proposer",
+      "blocks[].miner_pubkey_b64",
+      "blocks[].block_hash",
+      "sleeping_branches[].branch_id",
+      "sleeping_branches[].blocks[]",
+      "miners[].public_key_b64",
+      "miners[].label",
+      "rejection_reasons"
+    ],
+    "epoch_formula": "epoch = height // 100"
+  },
+  "generated_by": "export_public.py --metrics",
+  "language_evolution": {
+    "activation_events_total": 0,
+    "cumulative_ever_active": [],
+    "epochs": [
+      {
+        "available_at_open": [],
+        "blocks": 100,
+        "blocks_with_activation": 0,
+        "cumulative_ever_active": [],
+        "end_height": 99,
+        "epoch": 0,
+        "first_activation_heights": {},
+        "inoculated": [],
+        "inoculated_count": 0,
+        "lost_memory": [],
+        "lost_memory_count": 0,
+        "newly_activated": [],
+        "newly_activated_count": 0,
+        "start_height": 0
+      },
+      {
+        "available_at_open": [],
+        "blocks": 3,
+        "blocks_with_activation": 0,
+        "cumulative_ever_active": [],
+        "end_height": 102,
+        "epoch": 1,
+        "first_activation_heights": {},
+        "inoculated": [],
+        "inoculated_count": 0,
+        "lost_memory": [],
+        "lost_memory_count": 0,
+        "newly_activated": [],
+        "newly_activated_count": 0,
+        "start_height": 100
+      }
+    ],
+    "first_activation": {},
+    "first_activation_count": 0,
+    "total_inoculation_events": 0,
+    "total_lost_memory_features": 0,
+    "total_new_activations": 0
+  },
+  "ledger": {
+    "balances": [
+      {
+        "balance": 3400,
+        "miner": "化石刻工·临渊",
+        "public_key_hex": "757fc4c97dc38ac2a3df4eb912ea4c0f659accaab6caecd8a3632ef17a02fa3c3578d04b23d39559d892e96150b03fd8d5064ffe2f003dfba8076b5b7ced23f1",
+        "unspent_utxos": 34
+      },
+      {
+        "balance": 3400,
+        "miner": "地层匠·沧石",
+        "public_key_hex": "2f24b764ee2d31e8ad0f468b7f36e9ab3afb888ec221f518adc5766c435e732dadeae2153130036e8b9728e7f52817dedacff710ce9710cf7cac66fdf46a341a",
+        "unspent_utxos": 34
+      },
+      {
+        "balance": 3400,
+        "miner": "沉积者·阿砚",
+        "public_key_hex": "6a1d91cc661cd4fc205cf784ee8baf70e2aa46b9dbb1a7afd0281b87c6f9f6eb17e4d51f143f69b5fc90b4c0358420211a149aed684d6f16fba81a9e00dd05fd",
+        "unspent_utxos": 34
+      }
+    ],
+    "consumed_by_transactions": 0,
+    "genesis_block_excluded_from_rewards": true,
+    "method": "replayed-via-persistence.rebuild_store（与存档加载同一重建路径）",
+    "reward_amount": 100,
+    "rewarded_blocks": 102,
+    "rewards_issued": 10200,
+    "total_supply": 10200,
+    "transaction_count": 0,
+    "unspent_utxos": 102,
+    "warnings": []
+  },
+  "poi": {
+    "blocks": 103,
+    "input_tokens_total": 3094,
+    "main_chain_only": {
+      "blocks": 102,
+      "mean": 76.33333333333333,
+      "total_tokens": 7786
+    },
+    "max": 89,
+    "mean": 75.59223300970874,
+    "median": 71,
+    "min": 0,
+    "output_tokens_total": 4692,
+    "p25": 70.0,
+    "p75": 84.0,
+    "p90": 89.0,
+    "tokenizer_usage": {
+      "mock-tokenizer-v1": {
+        "blocks": 102,
+        "blocks_with_tokens": 102
+      },
+      "mock-v1": {
+        "blocks": 1,
+        "blocks_with_tokens": 0
+      }
+    },
+    "total_tokens": 7786,
+    "zero_token_blocks": 1
+  },
+  "readonly": true,
+  "schema": {
+    "analyzer": "analyze_chain.py",
+    "ecdsa_backend": "python-ecdsa",
+    "epoch_blocks": 100,
+    "format_version": "chain-v2",
+    "schema_version": 1,
+    "signature_verification": "enabled"
+  },
+  "schema_version": 1,
+  "source": {
+    "label": "archive",
+    "path": "C:\\Temp\\gen.json"
+  },
+  "warnings": [
+    "模型 manual-mock 的首次激活特性样本量 < 5，留存率/半衰期仅为估计，需谨慎解读"
+  ]
+}

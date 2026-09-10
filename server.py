@@ -52,6 +52,10 @@ INDEX_PATH = os.path.join(BASE_DIR, "index.html")
 DEFAULT_PERSIST_PATH = os.path.join(BASE_DIR, "data", persistence.DEFAULT_ARCHIVE_NAME)
 # 自动保存的串行锁：ThreadingHTTPServer 多线程下避免并发写同一 tmp 文件。
 _SAVE_LOCK = threading.Lock()
+# v0.3 阶段 E（D6）：变更类入口（/propose、/promote-branch）共享的状态串行锁。
+# 锁顺序约定：_STATE_LOCK 在外、_SAVE_LOCK 在内（_auto_save 在锁内被调用），
+# 避免与既有自动保存纪律产生嵌套死锁。
+_STATE_LOCK = threading.Lock()
 
 # 真实沙箱错误类型 -> 中文分类（前端直接展示）
 ERROR_LABELS = {
@@ -459,6 +463,82 @@ def api_eval_novscript(state: ServerState, body: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# v0.3 阶段 E：休眠分支升级 / 主链重组（Branch Promotion / Reorg）
+# ---------------------------------------------------------------------------
+def api_branches(state: ServerState) -> dict:
+    """GET /branches：休眠分支分组详情 + 每块提升资格预览与阻塞原因（D5/D8）。
+
+    纯只读：inspect_promotion 只做结构资格预检（E1–E6），不含 E7 重放；
+    语义有效性以 POST /promote-branch 的实际重放为准。
+    """
+    store = state.store
+    groups = []
+    for branch_id, blocks in store.sleeping_branches().items():
+        items = []
+        for block in blocks:
+            preview = store.inspect_promotion(block.block_hash)
+            items.append({
+                "height": block.height,
+                "epoch": block.epoch,
+                "miner_label": state.registry.label_of(block.miner_pubkey),
+                "feature_name": block.proposal.feature_id,
+                "description": block.proposal.specification,
+                "demo_code": block.proposal.demo_code,
+                "test_cases": [{"program": t.program, "expected": t.expected} for t in block.proposal.test_cases],
+                "block_hash_b64": b64e(bytes.fromhex(block.block_hash)),
+                "reason": state.rejection_reasons.get(block.block_hash, "休眠/落选区块"),
+                # 提升资格预览（D8：降级块 reason 以 "reorg:" 开头，可与校验拒绝区分）。
+                "promotion_status": preview.status,
+                "promotion_error_code": preview.error_code,
+                "promotion_message": preview.message,
+                "fork_height": preview.fork_height,
+                "new_tip_height": preview.new_tip_height,
+            })
+        groups.append({"branch_id": branch_id, "blocks": items})
+    return {"branches": groups, "sleeping_count": sum(len(item["blocks"]) for item in groups)}
+
+
+def api_promote_branch(state: ServerState, body: dict) -> dict:
+    """POST /promote-branch：按 head_block_hash 定位休眠分支链并执行升级。
+
+    - D5：head_block_hash 唯一精确标识（branch_id 组内多兄弟时有歧义）。
+    - D6：本端点与 /propose 共享 _STATE_LOCK（串行化变更类请求，见 do_POST）。
+    - D7：防御性断言——候选池必须为空（服务流程下请求间恒空）。
+    - 记账（D4）：提升块删旧拒绝记录；降级块写确定性 reorg 原因。
+    """
+    head_block_hash = str(body.get("head_block_hash", "")).strip()
+    store = state.store
+    if not head_block_hash:
+        return {"success": False, "reason": "head_block_hash 不能为空", "is_promoted": False,
+                "chain_height": store.height}
+    if state.pool.groups():
+        return {"success": False, "reason": "候选池存在未处理分组，拒绝执行重组（防御性检查）",
+                "is_promoted": False, "chain_height": store.height}
+    result = store.promote_branch(head_block_hash)
+    if result.status != "promoted":
+        return {"success": False, "reason": result.message, "error_code": result.error_code,
+                "is_promoted": False, "chain_height": store.height,
+                "fork_height": result.fork_height, "old_tip_height": result.old_tip_height,
+                "new_tip_height": result.new_tip_height}
+    # 记账：提升块删旧拒绝记录；降级块写确定性（无时间戳）reorg 原因。
+    for block_hash in result.promoted_hashes:
+        state.rejection_reasons.pop(block_hash, None)
+    prefix = head_block_hash[:12]
+    for block_hash in result.demoted_hashes:
+        state.rejection_reasons[block_hash] = f"reorg: demoted by promote(head={prefix})"
+    _auto_save(state)
+    return {
+        "success": True, "reason": "分支已升级为主链", "is_promoted": True,
+        "chain_height": store.height,
+        "fork_height": result.fork_height,
+        "old_tip_height": result.old_tip_height,
+        "new_tip_height": result.new_tip_height,
+        "promoted_hashes": [b64e(bytes.fromhex(item)) for item in result.promoted_hashes],
+        "demoted_hashes": [b64e(bytes.fromhex(item)) for item in result.demoted_hashes],
+    }
+
+
+# ---------------------------------------------------------------------------
 # HTTP handler 与服务器工厂
 # ---------------------------------------------------------------------------
 def build_handler(state: ServerState):
@@ -502,12 +582,22 @@ def build_handler(state: ServerState):
             if self.path == "/chain-state":
                 self._send_json(200, api_chain_state(state))
                 return
+            if self.path == "/branches":
+                # v0.3 阶段 E 新增：休眠分支分组详情 + 提升资格预览。
+                self._send_json(200, api_branches(state))
+                return
             self.send_error(404, "not found")
 
         def do_POST(self) -> None:
             body = self._read_json()
             if self.path == "/propose":
-                self._send_json(200, api_propose(state, body))
+                # v0.3 阶段 E（D6）：变更类入口共享状态锁，与 /promote-branch 互斥。
+                with _STATE_LOCK:
+                    self._send_json(200, api_propose(state, body))
+            elif self.path == "/promote-branch":
+                # v0.3 阶段 E 新增：休眠分支升级 / 主链重组。
+                with _STATE_LOCK:
+                    self._send_json(200, api_promote_branch(state, body))
             elif self.path == "/eval-novscript":
                 self._send_json(200, api_eval_novscript(state, body))
             else:

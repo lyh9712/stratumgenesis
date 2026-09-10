@@ -187,3 +187,202 @@ class ChainStore:
     def sleeping_branches(self) -> dict[str, tuple[Block, ...]]:
         """返回新的字典快照，调用方无法修改存储内部集合。"""
         return self._branch_map()
+
+    # ------------------------------------------------------------------
+    # 阶段 E：休眠分支升级 / 主链重组（Branch Promotion / Reorg）
+    # 算法与不变量见 BRANCH_PROMOTION_DESIGN.md §1–§7：
+    # scratch 构建 + 原子换入；任何失败路径只丢弃 scratch，live 零变化。
+    # ------------------------------------------------------------------
+    def _walk_branch(self, head_block_hash: str) -> tuple[list[Block], int]:
+        """链回溯（纯只读，设计 §2.1）：返回 (C, f)。
+
+        C = (b_1 … b_k) 为从分支首块到 head 的休眠链；f = 分叉父在主链的高度。
+        失败抛 PromotionError：
+        - 头不在全店 / 头在主链 -> PROMOTION_NOT_FOUND（E1）
+        - 回溯中父缺失（无法锚定主链）-> PROMOTION_PARENT_MISSING（E3）
+        - 环 / 步数超界 -> PROMOTION_CHAIN_BROKEN（E2 防御）
+        """
+        head = self.get_block(head_block_hash)
+        if head is None or any(item.block_hash == head_block_hash for item in self._main_chain):
+            raise PromotionError("PROMOTION_NOT_FOUND", "head block not found in sleeping branches")
+        chain: list[Block] = []
+        seen: set[str] = set()
+        current = head
+        while True:
+            if current.block_hash in seen:
+                raise PromotionError("PROMOTION_CHAIN_BROKEN", "cycle detected while walking branch")
+            seen.add(current.block_hash)
+            if len(seen) > self.height + 1:
+                raise PromotionError("PROMOTION_CHAIN_BROKEN", "branch walk exceeded depth bound")
+            chain.append(current)
+            parent = self.get_block(current.parent_hash) if current.parent_hash else None
+            if parent is None:
+                raise PromotionError(
+                    "PROMOTION_PARENT_MISSING", "branch chain cannot be anchored to main chain"
+                )
+            if any(item.block_hash == current.parent_hash for item in self._main_chain):
+                chain.reverse()
+                return chain, parent.height
+            current = parent
+
+    def inspect_promotion(self, head_block_hash: str) -> PromotionResult:
+        """只读资格预检（E1–E6，不含 E7 重放）：供 GET /branches 展示阻塞原因。"""
+        from block_validator import check_promotion_eligibility
+        try:
+            chain, fork_height = self._walk_branch(head_block_hash)
+        except PromotionError as error:
+            return PromotionResult("rejected", error.code, error.message, old_tip_height=self.height)
+        eligibility = check_promotion_eligibility(chain, fork_height, self)
+        if not eligibility.accepted:
+            return PromotionResult(
+                "rejected", eligibility.error_code, eligibility.message, old_tip_height=self.height
+            )
+        return PromotionResult(
+            "ready",
+            message="branch is structurally eligible (semantic replay is checked at promote time)",
+            fork_height=fork_height,
+            old_tip_height=self.height,
+            new_tip_height=fork_height + len(chain),
+        )
+
+    def branch_head_candidates(self) -> tuple[Block, ...]:
+        """返回可作为 promote 起点的全部休眠块（walk 可达主链；按高度升序）。
+
+        供库级调用方 / GET /branches 预览「可提升链」；含深层分支的中间块——
+        提升中间块会把它之上（以其为父）的休眠子孙保留在休眠，语义合法。
+        """
+        candidates = []
+        main_hashes = {item.block_hash for item in self._main_chain}
+        for block in self.all_blocks():
+            if block.block_hash in main_hashes:
+                continue
+            try:
+                self._walk_branch(block.block_hash)
+            except PromotionError:
+                continue
+            candidates.append(block)
+        return tuple(sorted(candidates, key=lambda item: item.height))
+
+    def promote_branch(
+        self,
+        head_block_hash: str,
+        *,
+        validator=None,
+        eligibility_checker=None,
+    ) -> PromotionResult:
+        """休眠分支升级 / 主链重组（设计 §3 S1–S4）。
+
+        - S1 链回溯 walk；S2 结构资格 E1–E6（check_promotion_eligibility）；
+        - S3 在全新 scratch ChainStore 上重放「保留前缀 M[1..f] -> 分支链 C
+          （逐块完整校验 E7）-> 休眠迁移（S\\C 原分组序 + 旧后缀按高度升序）」；
+        - S4 单临界区原子换入（唯一提交点），live store 零中间态。
+        任何失败返回 rejected 且本 store 全部可观测状态不变（I-11）。
+        依赖注入避免循环导入：validator / eligibility_checker 默认取
+        block_validator 的既有函数（延迟导入）。
+        """
+        from block_validator import check_promotion_eligibility, validate_block
+        validator = validator or validate_block
+        eligibility_checker = eligibility_checker or check_promotion_eligibility
+
+        old_tip_height = self.height
+
+        # S1 链回溯（纯只读）。
+        try:
+            chain, fork_height = self._walk_branch(head_block_hash)
+        except PromotionError as error:
+            return PromotionResult(
+                "rejected", error.code, error.message, old_tip_height=old_tip_height
+            )
+
+        # S2 结构资格判定 E1–E6（纯函数，只读）。
+        eligibility = eligibility_checker(chain, fork_height, self)
+        if not eligibility.accepted:
+            return PromotionResult(
+                "rejected", eligibility.error_code, eligibility.message,
+                old_tip_height=old_tip_height,
+            )
+
+        # S3 scratch 构建：任何失败丢弃 scratch，live 不动。
+        scratch = ChainStore()
+        try:
+            # S3a 重放保留前缀 M[1..f]（创世块 M[0] 已由 ChainStore() 自带）。
+            for block in self._main_chain[1 : fork_height + 1]:
+                scratch.append_main(block)
+            # S3b 分支链逐块完整校验并追加（E7 语义资格）。
+            for index, block in enumerate(chain):
+                result = validator(block, scratch)
+                if not result.accepted:
+                    raise PromotionError(
+                        result.error_code or "PROMOTION_REPLAY_FAILED",
+                        f"branch block #{index + 1} at height={block.height} rejected in new world "
+                        f"({result.stage}: {result.error_code or result.message})",
+                    )
+                scratch.append_main(block)
+            # S3c 休眠迁移：S\\C 按原分组顺序跳过被提升块。
+            for _branch_id, branch_blocks in self._sleeping_branches:
+                for block in branch_blocks:
+                    if any(item.block_hash == block.block_hash for item in chain):
+                        continue
+                    scratch.add_sleeping_branch(block)
+            # 旧后缀按高度升序入休眠（设计 §6.2 确定性写入顺序）。
+            for block in self._main_chain[fork_height + 1 :]:
+                scratch.add_sleeping_branch(block)
+        except PromotionError as error:
+            return PromotionResult(
+                "rejected", error.code, error.message, old_tip_height=old_tip_height
+            )
+        except Exception as error:
+            return PromotionResult(
+                "rejected", "PROMOTION_REPLAY_FAILED",
+                f"internal replay error: {error}", old_tip_height=old_tip_height,
+            )
+
+        # S4 原子换入（唯一提交点）：七个内部引用整体替换为 scratch 对应对象。
+        demoted = [block.block_hash for block in self._main_chain[fork_height + 1 :]]
+        object.__setattr__(self, "_main_chain", scratch._main_chain)
+        object.__setattr__(self, "_sleeping_branches", scratch._sleeping_branches)
+        object.__setattr__(self, "utxo_ledger", scratch.utxo_ledger)
+        object.__setattr__(self, "epoch_manager", scratch.epoch_manager)
+        object.__setattr__(self, "language_registry", scratch.language_registry)
+        object.__setattr__(self, "epoch_registry", scratch.epoch_registry)
+        object.__setattr__(self, "_language_snapshots", scratch._language_snapshots)
+        return PromotionResult(
+            "promoted",
+            message="branch promoted",
+            promoted_hashes=tuple(block.block_hash for block in chain),
+            demoted_hashes=tuple(demoted),
+            fork_height=fork_height,
+            old_tip_height=old_tip_height,
+            new_tip_height=self.height,
+        )
+
+
+# ---------------------------------------------------------------------------
+# 阶段 E：休眠分支升级 / 主链重组（Branch Promotion / Reorg）
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class PromotionResult:
+    """一次 promote 的结果（设计文档 §6 S6）。
+
+    status="promoted" 时 promoted_hashes / demoted_hashes 为已提升 / 已降级的
+    块哈希（hex 串）；status="rejected" 时 error_code + message 说明失败原因，
+    且 store 零状态变化（I-11）。
+    """
+
+    status: str  # "promoted" | "rejected"
+    error_code: str | None = None
+    message: str = ""
+    promoted_hashes: tuple[str, ...] = ()
+    demoted_hashes: tuple[str, ...] = ()
+    fork_height: int | None = None
+    old_tip_height: int | None = None
+    new_tip_height: int | None = None
+
+
+class PromotionError(Exception):
+    """promote 内部失败；携带 stage="promotion" 的错误码与确定性消息。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message

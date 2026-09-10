@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from block_model import Block, calculate_block_hash
 from chain_store import ChainStore
 from crypto_key import verify_block_signature
+from epoch_manager import EPOCH_BLOCKS
 from mock_tokenizer import MOCK_TOKENIZER_ID, count_poi_tokens
 from novscript import SandboxLimits, parse, run_sandbox
 from novscript.lexer import tokenize
@@ -351,3 +352,73 @@ def validate_block(block: Block, store: ChainStore, *, limits: SandboxLimits | N
         if failure is not None:
             return failure
     return ValidationResult(True, "accepted", checked_stages=tuple(checked), message="block is a valid candidate")
+
+
+# ---------------------------------------------------------------------------
+# 阶段 E：promote 结构资格判定（E1–E6；stage="promotion"，不进常规流水线）
+# ---------------------------------------------------------------------------
+def check_promotion_eligibility(
+    chain: list[Block] | tuple[Block, ...],
+    fork_height: int,
+    store: ChainStore,
+) -> ValidationResult:
+    """休眠分支升级的结构资格判定（设计文档 §2.2，E1–E6）。
+
+    chain 为 walk 产出的休眠链 (b_1 … b_k)，fork_height = 分叉父在主链的高度。
+    E7（重放语义有效性）不在此函数执行——由 chain_store.promote_branch 在
+    scratch 重放时逐块完整校验（纯函数：不修改 store，仅返回判定结果）。
+    """
+    checked = ["promotion"]
+    e_star = store.epoch_of_height(store.height)
+    epoch_start = e_star * EPOCH_BLOCKS
+    if not chain:
+        return _fail("promotion", "PROMOTION_NOT_FOUND", "empty branch chain", checked)
+    # E2 链线性完整：父链接 + 高度连续 + 首块高度 == f + 1。
+    for index in range(1, len(chain)):
+        if chain[index].parent_hash != chain[index - 1].block_hash:
+            return _fail(
+                "promotion", "PROMOTION_CHAIN_BROKEN",
+                f"branch chain link broken at index {index}", checked,
+            )
+        if chain[index].height != chain[index - 1].height + 1:
+            return _fail(
+                "promotion", "PROMOTION_CHAIN_BROKEN",
+                f"branch height non-linear at index {index}", checked,
+            )
+    if chain[0].height != fork_height + 1:
+        return _fail(
+            "promotion", "PROMOTION_CHAIN_BROKEN",
+            "branch head does not connect to fork parent", checked,
+        )
+    # E3 分叉父锚定主链（walk 已保证，此处防御复查）。
+    main = store.main_chain()
+    if fork_height > len(main) - 1 or main[fork_height].block_hash != chain[0].parent_hash:
+        return _fail(
+            "promotion", "PROMOTION_PARENT_MISSING",
+            "branch does not anchor to current main chain", checked,
+        )
+    # E4 旧后缀纪元局部：被替换后缀整体位于当前纪元（f + 1 >= s）。
+    if fork_height + 1 < epoch_start:
+        return _fail(
+            "promotion", "PROMOTION_ARCHIVED_EPOCH",
+            f"reorg would touch archived epoch blocks (fork height {fork_height} < epoch start {epoch_start})",
+            checked,
+        )
+    # E5 分支纪元局部（v1 从严版）：分支整链位于当前纪元（含未来纪元块即拒）。
+    for block in chain:
+        if block.epoch != e_star:
+            return _fail(
+                "promotion", "PROMOTION_EPOCH_SPAN",
+                f"branch block height={block.height} epoch={block.epoch} escapes current epoch {e_star}",
+                checked,
+            )
+    # E6 唯一性（防御复查）：C 内互异、C ∩ M = ∅。
+    hashes = [block.block_hash for block in chain]
+    if len(set(hashes)) != len(hashes):
+        return _fail("promotion", "PROMOTION_NOT_ELIGIBLE", "branch contains duplicate block hashes", checked)
+    main_hashes = {block.block_hash for block in main}
+    if any(block.block_hash in main_hashes for block in chain):
+        return _fail("promotion", "PROMOTION_NOT_ELIGIBLE", "branch intersects main chain", checked)
+    return ValidationResult(
+        True, "promotion", checked_stages=tuple(checked), message="branch is structurally eligible"
+    )

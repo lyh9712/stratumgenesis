@@ -17,6 +17,20 @@
 
 ---
 
+> ## ⚠️ v0.3 阶段 E 语义修订（休眠分支升级 / 主链重组对语言层的影响）
+> **ever_active（历史层）的精确语义（D3 裁决）**：
+> `ChainStore.language_registry`（历史层）与 `ever_active_features()` 的语义是
+> **「在 append 序列上单调不减；重组（promote_branch）是重推导事件，允许收缩」**。
+> - 普通出块路径（`append_main`）只增不减：新特性注册、引种不重复注册；
+> - 主链重组是**重推导**：scratch 只重放保留前缀 + 被提升分支，旧后缀中
+>   携带的唯一激活记录随之离开主链，历史层**收缩**（回到重放后的真实状态）；
+> - 该语义不引入任何高水位线字段，`FORMAT_VERSION` 保持 `chain-v2`。
+> 与此配套：休眠分支的 `branch_active_features` 仍是休眠只读视图，不进主链态；
+> 语言快照 `_language_snapshots[height]` 在重组时整体按新链重放重建。
+> 实现与用例见 `BRANCH_PROMOTION_IMPLEMENTATION.md`（T-12、T-14、T-15）。
+
+---
+
 ## 1. 为什么需要这一模块
 
 改造前：`feature_id / specification` 只用于展示与序列化；`novscript/` 中没有

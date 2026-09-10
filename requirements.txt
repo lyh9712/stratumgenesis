@@ -1,0 +1,22 @@
+# StratumGenesis 运行时依赖
+#
+# 本项目只有一个第三方依赖；其余全部为 Python 标准库
+# （HTTP 服务用 http.server，未使用 Flask / FastAPI / Pydantic）。
+#
+# ---------------------------------------------------------------------------
+# ecdsa 0.19.2  ——  第三方许可：Apache License 2.0
+#   用途：crypto_key.py 的 P-256 确定性签名 / 验签。
+#         persistence.py 与 analyze_chain.py --verify 共用
+#         crypto_key.verify_block_signature（同一实现来源）；
+#         全项目不再有手写 ECDSA 回退实现。
+#
+#   缺少本依赖时的行为（已实测，不会崩溃式报错）：
+#     - 无存档回退 / --synthetic 路径：打印中文可执行提示（pip install ecdsa，
+#       或用已装 ecdsa 的解释器），以非零码退出；绝不打印原始 ImportError 英文栈。
+#     - --verify：打印「本机缺少 ecdsa 依赖，跳过签名重验」，并在 --json 的 schema
+#       中标记 ecdsa_backend="unavailable"、signature_verification="skipped_no_ecdsa"，
+#       同时写入 warnings；绝不用手写实现冒充真实验签。
+#
+# 实测环境：Python 3.13.7 + ecdsa 0.19.2，全量 unittest 237 项通过（0 失败）。
+# ---------------------------------------------------------------------------
+ecdsa==0.19.2

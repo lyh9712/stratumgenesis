@@ -1,0 +1,70 @@
+# StratumGenesis · NOTICE
+
+## 项目定位
+
+**StratumGenesis — 一条把"自然语言演化"当成地层来挖掘的实验链。**
+你提交一句自然语言，它在链上被解析、被验证、被投票、被签名，然后沉降成一块不可抵赖的地层。
+
+**性质**：单机仿真实验原型。无 P2P 网络、无公网部署、无身份鉴权、无可交易代币；
+摘要链为 `mock-rule-v1` 规则模板（非真实 LLM），当前无信息衰减与遗忘实现。
+
+## 作者与维护者
+
+- 项目组织者：`[占位符：请填写作者姓名或实体名称]`
+- 联系邮箱：`[占位符：请填写可用邮箱，例如 name@example.com]`
+- 仓库：`[占位符：请填写仓库 URL，例如 https://github.com/<user>/tokenmint]`
+
+> **AI 辅助声明**：本项目代码由 AI 智能体在作者的指令与审核下产出。
+> 多数司法辖区对「纯 AI 生成」内容的可版权性持保留态度；作者作为项目组织者主张权利。
+> **这不是法律意见**，涉及商业维权请咨询专业人士。
+
+## 许可（双许可）
+
+| 对象 | 许可 |
+|---|---|
+| **代码**（`*.py`、`index.html`、`start.bat`、脚本与配置） | **PolyForm Noncommercial License 1.0.0** |
+| **文档**（白皮书、`*_IMPLEMENTATION.md`、`API_SPEC.md`、`README.md`、本文件等） | **CC BY-NC-SA 4.0** |
+
+- 代码完整条文见 [`LICENSE`](LICENSE)；中文解读（**非法律文本**）见 [`LICENSE-SCOPE.md`](LICENSE-SCOPE.md)。
+- SPDX 标识：代码 `SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0`；
+  文档 `CC-BY-NC-SA-4.0`。
+- ⚠️ PolyForm NC **不是 OSI 开源许可**；本项目**不应被称作 "open source"**。
+  商业用途一律需事先书面授权，联系方式见 `LICENSE-SCOPE.md` §7。
+
+## 依赖声明
+
+本项目**只有一个第三方运行时依赖**，见 [`requirements.txt`](requirements.txt)：
+
+| 依赖 | 版本 | 该依赖的许可 | 用途 |
+|---|---|---|---|
+| `ecdsa` | `0.19.2` | Apache License 2.0 | P-256 区块签名与重验（`crypto_key.py`） |
+
+- `persistence.py` 与 `analyze_chain.py --verify` **共用** `crypto_key.verify_block_signature`
+  （同一实现来源）；全项目**不再有手写 ECDSA / P-256 回退实现**。
+- 其余代码**纯 Python 标准库**：HTTP 服务用 `http.server`，**未使用 Flask / FastAPI / Pydantic**。
+- 第三方依赖各自的许可**不**被本项目许可覆盖，其条款依然有效。
+- 缺少 `ecdsa` 时的行为（已实测）：无存档回退／`--synthetic` 路径打印可执行中文提示并以**非零码**退出，
+  **绝不打印原始 `ImportError` 英文栈**；`--verify` 显式跳过并在 `--json` 的 `schema` 中标注
+  `ecdsa_backend="unavailable"`、`signature_verification="skipped_no_ecdsa"`，**不会用手写实现冒充真实验签**。
+
+## 无代币声明（重要）
+
+本项目**不发行、不流通、不可交易任何代币**。
+
+- `utxo_model.py` / `utxo_ledger.py` 中的 UTXO 是**教学用的模拟账本结构**，
+  仅用于演示「不可双花」这一数据结构性质；它**不构成金融工具、证券、数字资产或任何可交易凭证**。
+- 链内凭证（永久地层署名、投票权重累计、数字徽章）**没有现实价值**，
+  不对应任何资产、权益或兑付承诺。
+- 激励机制是**纯非金融**的（署名、声望、研究数据归属）。
+  白皮书中关于「真实 LLM 摘要」与「可交易代币」均属**长期方向建议**，**当前版本均未实现**。
+- 任何将本项目用于**代币发行、募资、交易或金融中介**的行为**完全在许可范围之外**，
+  并可能触及各地证券与金融监管；作者对此不承担责任。
+
+## 再分发义务
+
+再分发任何副本时，请一并保留 `LICENSE`、`LICENSE-SCOPE.md` 与本 `NOTICE`，
+以及块内矿工署名与贡献记录。
+
+> ⚠️ **导出链数据前必须剥离 `miners` 字段**：存档含明文私钥（实测 3 组），
+> 公开链数据本身没问题，**连带私钥一起发布等于泄露**。
+> 详见 `LICENSE-SCOPE.md` §5。

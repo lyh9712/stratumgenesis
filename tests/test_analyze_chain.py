@@ -1,34 +1,49 @@
 """StratumGenesis v0.3 · 并行线 C：离线链分析器测试。
 
-覆盖范围（只针对新增的 analyze_chain.py，不启动 HTTP 服务、不读写 data/）：
+覆盖范围（只针对 analyze_chain.py，不启动 HTTP 服务、不读写 data/）：
   1. 合成链的语言演化指标：首次激活高度、新激活/引种分类、逐纪元失忆集合；
   2. 合成链的链与共识、账本、PoI 指标与休眠分支对账；
   3. 边界：空链（无 blocks）与仅创世块；
   4. 错误处理：文件不存在、损坏 JSON、根节点非对象、版本不匹配、缺 blocks；
   5. 依赖边界：指标只由 blocks[].activation / height 推导，不依赖
      epochs[].active_features / current_active_features / language_features，
-     且不信任 blocks[].epoch（按 height // 100 重新推导）。
+     且不信任 blocks[].epoch（按 height // 100 重新推导）；
+  6. 跨 AI 创造力指标（--by-model）：按 blocks[].poi.model_metadata 分组的
+     接受与产出、引种留存率与半衰期、原语偏好、组合新颖度、分工与协作；
+  7. 缺 ecdsa 依赖的诚实降级：依赖项以 @unittest.skipUnless 跳过（0 失败 0 错误），
+     无参回退/--synthetic 打印中文可执行提示并以非零码退出。
 
 本测试不触碰端口 28417，因此可单独用
     python -m unittest discover -s tests -p "test_analyze_chain.py"
-运行，不需要起服务、不需要真实 ecdsa 包（缺失时走 analyze_chain 的标准库回退）。
+运行；有 ecdsa（Python 3.13）时全部通过，无 ecdsa 时依赖合成链/验签的用例被跳过。
 """
 
 import contextlib
 import io
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 
 import analyze_chain
 
 
+def _ecdsa_available() -> bool:
+    """skipUnless 用的可判定谓词：仅当真实后端为 python-ecdsa 时才运行依赖用例。"""
+    return analyze_chain.ECDSA_BACKEND == analyze_chain.BACKEND_PYTHON_ECDSA
+
+
+ECDSA_REQUIRED = "需要 ecdsa 依赖（构造合成链/验签需 crypto_key 真实签名）"
+
+
 # ---------------------------------------------------------------------------
 # 测试用最小 JSON 构造器（刻意省略 activation / height 以外的所有派生字段）
 # ---------------------------------------------------------------------------
 def make_block(height: int, activation=(), tokens: int = 30,
-               miner: str = "AA==", proposer: str = "", tokenizer: str = "mock-v1") -> dict:
+               miner: str = "AA==", proposer: str = "", tokenizer: str = "mock-v1",
+               model_metadata: str = "") -> dict:
     """构造一个只含稳定字段的最小区块条目。"""
     return {
         "height": height,
@@ -42,6 +57,7 @@ def make_block(height: int, activation=(), tokens: int = 30,
             "standard_total_tokens": tokens,
             "standard_input_tokens": tokens // 3,
             "standard_output_tokens": tokens - tokens // 3,
+            "model_metadata": model_metadata,
         },
     }
 
@@ -79,8 +95,9 @@ def write_tmp(doc, name: str = "archive.json") -> str:
     return path
 
 
+@unittest.skipUnless(_ecdsa_available(), ECDSA_REQUIRED)
 class SyntheticChainLanguageMetricsTest(unittest.TestCase):
-    """合成链（跨 3 个纪元）的语言演化指标。"""
+    """合成链（跨 3 个纪元）的语言演化指标。构造合成链需要 ecdsa 真实签名。"""
 
     @classmethod
     def setUpClass(cls):
@@ -141,6 +158,7 @@ class SyntheticChainLanguageMetricsTest(unittest.TestCase):
         self.assertEqual(lang["cumulative_ever_active"], ["*", "-", "head", "list"])
 
 
+@unittest.skipUnless(_ecdsa_available(), ECDSA_REQUIRED)
 class SyntheticChainOtherMetricsTest(unittest.TestCase):
     """合成链的链与共识 / 账本 / PoI / 休眠分支指标。"""
 
@@ -349,9 +367,15 @@ class ErrorHandlingTest(unittest.TestCase):
             os.path.join(tempfile.gettempdir(), "analyze_chain_absent.json")]), 1)
 
     def test_cli_returns_zero_on_success(self):
-        self.assertEqual(analyze_chain.main(["--synthetic", "--compact"]), 0)
+        # 存档路径不依赖 ecdsa（账本重放失败时自动降级），可无 ecdsa 运行
         path = write_tmp(make_archive([make_block(0), make_block(1, activation=["a"])]))
         self.assertEqual(analyze_chain.main([path, "--compact"]), 0)
+
+    @unittest.skipUnless(_ecdsa_available(), ECDSA_REQUIRED)
+    def test_cli_synthetic_returns_zero(self):
+        # --synthetic 构造合成链需要 ecdsa 真实签名，缺依赖时返回 1（见
+        # MissingEcdsaChineseHintTest），因此 exit 0 分支在此断言
+        self.assertEqual(analyze_chain.main(["--synthetic", "--compact"]), 0)
 
 
 class DependencyBoundaryTest(unittest.TestCase):
@@ -442,17 +466,17 @@ class DependencyBoundaryTest(unittest.TestCase):
         self.assertEqual(analyze_chain.EPOCH_BLOCKS, 100)
 
 
+@unittest.skipUnless(_ecdsa_available(), ECDSA_REQUIRED)
 class VerifyAndTamperTest(unittest.TestCase):
     """--verify 走 crypto_key.verify_block_signature；篡改签名必须被抓到。
 
     真实签名只有 build_synthetic_chain 能提供（make_block 的最小条目无签名），
     因此这里序列化合成链到临时目录再验。不触碰端口、不读写 data/。
+    本类依赖 ecdsa，缺依赖时整类跳过（@unittest.skipUnless）。
     """
 
     @classmethod
     def setUpClass(cls):
-        if analyze_chain.ECDSA_BACKEND != analyze_chain.BACKEND_PYTHON_ECDSA:
-            raise unittest.SkipTest("本机缺少 ecdsa，跳过真实验签往返测试")
         import tempfile as _tf
         cls.dir = tempfile.mkdtemp(prefix="analyze_chain_verify_")
         doc = analyze_chain.build_synthetic_chain()
@@ -560,6 +584,7 @@ class MissingEcdsaSkipTest(unittest.TestCase):
 class NoArgumentFallbackTest(unittest.TestCase):
     """无位置参数：提示 + 内存合成链演示 + 退出码 0（已批准行为，须可断言）。"""
 
+    @unittest.skipUnless(_ecdsa_available(), "需要 ecdsa 依赖（无参回退 exit 0 需 ecdsa 可用）")
     def test_no_archive_prints_hint_and_exits_zero(self):
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
@@ -584,6 +609,358 @@ class NoArgumentFallbackTest(unittest.TestCase):
         # P3：无参数行为必须写进 --help，避免自动化调用方误判
         self.assertIn("退出码仍为 0", help_text)
         self.assertIn("参数被忽略", help_text)
+
+
+class MissingEcdsaChineseHintTest(unittest.TestCase):
+    """缺 ecdsa 依赖：中文可执行提示 + 非零退出（模拟缺失，不落正式代码）。
+
+    用临时改写 analyze_chain.ECDSA_BACKEND 模拟缺失；tearDown 还原，
+    不影响同进程内其他测试的真实后端判定。
+    """
+
+    def _patch_missing(self):
+        self._saved_backend = analyze_chain.ECDSA_BACKEND
+        analyze_chain.ECDSA_BACKEND = analyze_chain.BACKEND_UNAVAILABLE
+
+    def tearDown(self):
+        if hasattr(self, "_saved_backend"):
+            analyze_chain.ECDSA_BACKEND = self._saved_backend
+
+    def test_require_ecdsa_raises_chinese_hint(self):
+        self._patch_missing()
+        with self.assertRaises(analyze_chain.AnalysisError) as ctx:
+            analyze_chain.require_ecdsa_for_synthetic()
+        message = str(ctx.exception)
+        self.assertIn("缺少 ecdsa 依赖", message)
+        self.assertIn("pip install ecdsa", message)
+        self.assertNotIn("No module named", message)
+
+    def test_synthetic_without_ecdsa_exits_nonzero_with_chinese_hint(self):
+        self._patch_missing()
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = analyze_chain.main(["--synthetic", "--compact"])
+        self.assertEqual(code, 1)
+        output = buffer.getvalue()
+        self.assertIn("缺少 ecdsa 依赖", output)
+        self.assertIn("pip install ecdsa", output)
+        self.assertNotIn("No module named", output)
+
+    def test_noarg_fallback_without_ecdsa_exits_nonzero(self):
+        self._patch_missing()
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = analyze_chain.main([])
+        self.assertEqual(code, 1)
+        self.assertIn("缺少 ecdsa 依赖", buffer.getvalue())
+
+    def test_skip_condition_reflects_backend(self):
+        # 谓词必须跟随真实后端：有 ecdsa 为 True，模拟缺失为 False。
+        self.assertEqual(_ecdsa_available(),
+                         analyze_chain.ECDSA_BACKEND == analyze_chain.BACKEND_PYTHON_ECDSA)
+        self._patch_missing()
+        self.assertFalse(_ecdsa_available())
+
+
+@unittest.skipUnless(_ecdsa_available(), ECDSA_REQUIRED)
+class ByModelSyntheticTest(unittest.TestCase):
+    """合成链剧情：A 的特性在下一纪元被引种、B 的被遗忘（硬编码期望值）。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = analyze_chain.build_synthetic_chain()
+        cls.by_model = analyze_chain.analyze_by_model(cls.data)
+
+    def models(self):
+        return {item["model_id"]: item for item in self.by_model["models"]}
+
+    def test_three_models_and_acceptance_counts(self):
+        models = self.models()
+        self.assertEqual(sorted(models), ["synthetic-model-a", "synthetic-model-b", "synthetic-model-c"])
+        accept_a = models["synthetic-model-a"]["acceptance"]
+        accept_b = models["synthetic-model-b"]["acceptance"]
+        accept_c = models["synthetic-model-c"]["acceptance"]
+        self.assertEqual((accept_a["proposals"], accept_a["accepted_to_main"],
+                          accept_a["rejected_to_sleeping_branch"]), (69, 69, 0))
+        self.assertEqual(accept_a["acceptance_rate"], 1.0)
+        self.assertEqual((accept_b["proposals"], accept_b["accepted_to_main"],
+                          accept_b["rejected_to_sleeping_branch"]), (69, 68, 1))
+        self.assertAlmostEqual(accept_b["acceptance_rate"], 68 / 69, places=9)
+        self.assertEqual((accept_c["proposals"], accept_c["accepted_to_main"],
+                          accept_c["rejected_to_sleeping_branch"]), (68, 68, 0))
+        self.assertEqual(accept_c["acceptance_rate"], 1.0)
+        # 接受数 + 落选数 = 提案数；创世块不计入任何模型
+        for model in self.by_model["models"]:
+            a = model["acceptance"]
+            self.assertEqual(a["proposals"],
+                             a["accepted_to_main"] + a["rejected_to_sleeping_branch"])
+        self.assertNotIn("genesis", models)
+
+    def test_retention_story_a_reintroduced_b_forgotten(self):
+        models = self.models()
+        retain_a = models["synthetic-model-a"]["retention"]
+        retain_b = models["synthetic-model-b"]["retention"]
+        retain_c = models["synthetic-model-c"]["retention"]
+        # A：- 首次激活后于纪元 1 被引种（半衰期跨度 1 纪元）
+        self.assertEqual(retain_a["features_first_activated"], ["-"])
+        self.assertEqual(retain_a["reintroduction_events"], 1)
+        self.assertEqual(retain_a["half_life_epochs"], 1.0)
+        feat_a = retain_a["features"][0]
+        self.assertEqual(feat_a["first_height"], 1)
+        self.assertEqual(feat_a["first_epoch"], 0)
+        self.assertEqual(feat_a["reintroduction_count"], 1)
+        self.assertEqual(feat_a["last_reintroduction_epoch"], 1)
+        self.assertEqual(feat_a["span_epochs"], 1)
+        self.assertEqual(feat_a["silent_epochs_since_first"], 1)
+        # B：list/head/* 全部未再被引种（被遗忘）
+        self.assertEqual(retain_b["features_first_activated"], ["*", "head", "list"])
+        self.assertEqual(retain_b["reintroduction_events"], 0)
+        self.assertEqual(retain_b["half_life_epochs"], 0.0)
+        spans_b = {item["primitive"]: item for item in retain_b["features"]}
+        self.assertEqual(spans_b["head"]["span_epochs"], 0)
+        self.assertEqual(spans_b["head"]["silent_epochs_since_first"], 2)
+        self.assertEqual(spans_b["list"]["silent_epochs_since_first"], 2)
+        self.assertEqual(spans_b["*"]["first_epoch"], 1)
+        self.assertEqual(spans_b["*"]["silent_epochs_since_first"], 1)
+        # C：无首次激活特性 -> 半衰期为 None + 样本量警示
+        self.assertEqual(retain_c["features_first_activated"], [])
+        self.assertIsNone(retain_c["half_life_epochs"])
+        self.assertTrue(retain_c["sample_size_warning"])
+        # 样本量警示：A/B 各只有 1/3 个特性，均低于阈值
+        self.assertTrue(retain_a["sample_size_warning"])
+        self.assertTrue(retain_b["sample_size_warning"])
+
+    def test_primitive_preference_and_combination_novelty(self):
+        models = self.models()
+        pref_a = models["synthetic-model-a"]["primitive_preference"]
+        pref_b = models["synthetic-model-b"]["primitive_preference"]
+        self.assertEqual(pref_a["activation_blocks"], 2)
+        self.assertEqual(pref_a["primitives"], {"-": 2})
+        self.assertEqual(pref_b["primitives"], {"*": 1, "head": 1, "list": 1})
+        novel_a = models["synthetic-model-a"]["combination_novelty"]
+        novel_b = models["synthetic-model-b"]["combination_novelty"]
+        novel_c = models["synthetic-model-c"]["combination_novelty"]
+        # A 的组合 ("-",) 全局首次出现；B 的 ("head","list") 与 ("*",) 也是全局首次
+        self.assertEqual(novel_a["novel_count"], 1)
+        self.assertEqual(novel_a["non_novel_count"], 0)
+        self.assertTrue(novel_a["combinations_first_activated"][0]["globally_first_seen"])
+        self.assertEqual(novel_b["novel_count"], 2)
+        self.assertEqual(novel_b["non_novel_count"], 0)
+        combos_b = {tuple(item["combination"]): item
+                    for item in novel_b["combinations_first_activated"]}
+        self.assertIn(("head", "list"), combos_b)
+        self.assertIn(("*",), combos_b)
+        self.assertEqual(novel_c["combinations_first_activated"], [])
+        self.assertEqual(novel_c["novel_count"], 0)
+
+    def test_collaboration_single_identity_per_miner(self):
+        collab = self.by_model["collaboration"]
+        self.assertEqual(collab["miners_with_multiple_models"], [])
+        self.assertEqual(collab["multi_model_miner_count"], 0)
+        self.assertEqual(collab["models_used_by_multiple_miners"], [])
+        self.assertEqual(collab["multi_miner_model_count"], 0)
+        for model in self.by_model["models"]:
+            self.assertEqual(model["miner_count"], 1)
+
+    def test_report_json_partition_stable_keys(self):
+        report, _ = analyze_chain.build_report(self.data, source="s", source_label="s",
+                                               include_by_model=True)
+        partition = report["by_model"]
+        self.assertEqual(
+            sorted(partition),
+            ["collaboration", "derived_from", "models", "sample_size_warning_threshold", "scope"],
+        )
+        self.assertIn("blocks[].poi.model_metadata", partition["derived_from"])
+        self.assertTrue(partition["scope"]["genesis_excluded"])
+        model_keys = sorted(partition["models"][0])
+        self.assertEqual(model_keys, ["acceptance", "combination_novelty", "miner_count",
+                                      "miners", "model_id", "primitive_preference", "retention"])
+        retention = partition["models"][0]["retention"]
+        for key in ("features_first_activated", "feature_count", "reintroduction_events",
+                    "half_life_epochs", "mean_span_epochs", "span_epochs_min",
+                    "span_epochs_max", "features", "sample_size_warning"):
+            self.assertIn(key, retention)
+        acceptance = partition["models"][0]["acceptance"]
+        for key in ("proposals", "accepted_to_main", "rejected_to_sleeping_branch",
+                    "main_chain_blocks", "sleeping_branch_blocks", "acceptance_rate"):
+            self.assertIn(key, acceptance)
+
+    def test_console_section_gated_by_flag(self):
+        _, text_without = analyze_chain.build_report(self.data, source="s", source_label="s")
+        self.assertNotIn("跨 AI 创造力指标", text_without)
+        _, text_with = analyze_chain.build_report(self.data, source="s", source_label="s",
+                                                  include_by_model=True)
+        self.assertIn("跨 AI 创造力指标", text_with)
+        self.assertIn("接受率", text_with)
+        self.assertIn("半衰期", text_with)
+        self.assertIn("组合新颖度", text_with)
+
+
+class ByModelUnitTest(unittest.TestCase):
+    """--by-model 的退化行为与口径细节（最小 JSON 输入，不依赖 ecdsa）。"""
+
+    def _report(self, blocks, **extra):
+        data = make_archive(blocks, **extra)
+        return analyze_chain.build_report(data, source="test", source_label="test",
+                                          include_by_model=True)
+
+    def test_single_model_degenerate_behavior(self):
+        branch_blocks = [make_block(4, model_metadata="only-model")]
+        report, _ = self._report(
+            [make_block(0, tokens=0, model_metadata="genesis"),
+             make_block(1, activation=["x"], model_metadata="only-model"),
+             make_block(2, activation=["y"], model_metadata="only-model"),
+             make_block(3, model_metadata="only-model")],
+            sleeping_branches=[{"branch_id": "br-1", "blocks": branch_blocks}],
+        )
+        models = report["by_model"]["models"]
+        self.assertEqual(len(models), 1)
+        model = models[0]
+        self.assertEqual(model["model_id"], "only-model")
+        self.assertEqual(model["acceptance"], {
+            "proposals": 4, "accepted_to_main": 3, "rejected_to_sleeping_branch": 1,
+            "main_chain_blocks": 3, "sleeping_branch_blocks": 1,
+            "acceptance_rate": 0.75,
+        })
+        # 退化：单模型下留存指标照常给出（样本量警示开启）
+        self.assertEqual(model["retention"]["features_first_activated"], ["x", "y"])
+        self.assertTrue(model["retention"]["sample_size_warning"])
+        self.assertIn("样本量", " | ".join(report["warnings"]))
+
+    def test_missing_model_metadata_groups_to_unnamed(self):
+        report, _ = self._report([make_block(0, tokens=0), make_block(1, activation=["a"])])
+        models = report["by_model"]["models"]
+        self.assertEqual(len(models), 1)
+        self.assertEqual(models[0]["model_id"], "(未标注)")
+        self.assertEqual(models[0]["acceptance"]["accepted_to_main"], 1)
+
+    def test_only_genesis_yields_empty_models(self):
+        report, _ = self._report([make_block(0, tokens=0, model_metadata="genesis")])
+        self.assertEqual(report["by_model"]["models"], [])
+        self.assertEqual(report["by_model"]["collaboration"]["multi_model_miner_count"], 0)
+        self.assertEqual(report["by_model"]["collaboration"]["multi_miner_model_count"], 0)
+
+    def test_miner_with_multiple_model_identities(self):
+        report, _ = self._report([
+            make_block(0, tokens=0),
+            make_block(1, miner="miner-1", model_metadata="m1"),
+            make_block(2, miner="miner-1", model_metadata="m2"),
+        ])
+        collab = report["by_model"]["collaboration"]
+        self.assertEqual(collab["multi_model_miner_count"], 1)
+        entry = collab["miners_with_multiple_models"][0]
+        self.assertEqual(entry["miner_pubkey_b64"], "miner-1")
+        self.assertEqual(entry["models"], ["m1", "m2"])
+        # 两个模型各自只挂一名矿工
+        model_ids = [m["model_id"] for m in report["by_model"]["models"]]
+        self.assertEqual(sorted(model_ids), ["m1", "m2"])
+        self.assertEqual(report["by_model"]["models"][0]["miner_count"], 1)
+
+    def test_model_used_by_multiple_miners(self):
+        report, _ = self._report([
+            make_block(0, tokens=0),
+            make_block(1, miner="miner-1", model_metadata="shared"),
+            make_block(2, miner="miner-2", model_metadata="shared"),
+        ])
+        collab = report["by_model"]["collaboration"]
+        self.assertEqual(collab["multi_miner_model_count"], 1)
+        entry = collab["models_used_by_multiple_miners"][0]
+        self.assertEqual(entry["model_id"], "shared")
+        self.assertEqual(entry["miner_count"], 2)
+        self.assertEqual(sorted(entry["miners"]), ["miner-1", "miner-2"])
+
+    def test_sentinel_zero_leakage_in_by_model(self):
+        blocks = [
+            make_block(0, tokens=0),
+            make_block(1, activation=["alpha"], model_metadata="real-model"),
+        ]
+        report, text = analyze_chain.build_report(
+            make_archive(blocks), source="test", source_label="test", include_by_model=True)
+        raw = json.dumps(report, ensure_ascii=False)
+        for sentinel in DependencyBoundaryTest.SENTINELS:
+            self.assertNotIn(sentinel, raw)
+            self.assertNotIn(sentinel, text)
+        # 模型身份来自 poi.model_metadata（真实字段），而非被避开的派生字段
+        self.assertIn("real-model", raw)
+        self.assertIn("blocks[].poi.model_metadata", report["by_model"]["derived_from"])
+
+
+class GbkConsoleSafetyTest(unittest.TestCase):
+    """GBK 控制台安全（线③收口）：中文 Windows 默认 GBK 代码页下 CLI 不崩溃。
+
+    复现方式：subprocess 强制 PYTHONIOENCODING=gbk 运行 CLI（等价于
+    GBK 控制台写 stdout 的真实条件），断言 exit 0 且无 codec 崩溃；
+    并断言报告正文不含 U+26A0 等 GBK 不可编码字符、--json 文件仍为 UTF-8。
+    """
+
+    SCRIPT = os.path.join(os.path.dirname(os.path.abspath(analyze_chain.__file__)),
+                          "analyze_chain.py")
+
+    def _run_cli(self, args):
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "gbk"
+        env.pop("PYTHONUTF8", None)
+        return subprocess.run(
+            [sys.executable, self.SCRIPT] + args,
+            capture_output=True, cwd=os.path.dirname(self.SCRIPT),
+            env=env)
+
+    @staticmethod
+    def _gbk_encodable(text: str) -> bool:
+        try:
+            text.encode("gbk")
+            return True
+        except UnicodeEncodeError:
+            return False
+
+    @unittest.skipUnless(_ecdsa_available(), ECDSA_REQUIRED)
+    def test_synthetic_by_model_exits_zero_under_gbk_env(self):
+        result = self._run_cli(["--synthetic", "--by-model"])
+        self.assertEqual(result.returncode, 0)
+        # 修复前这里会崩在 '"gbk" codec can't encode character' 上
+        self.assertNotIn(b"codec can't encode", result.stderr)
+        self.assertNotIn("codec can't encode", result.stderr.decode("utf-8", errors="replace"))
+        out = result.stdout.decode("utf-8", errors="replace")
+        self.assertIn("synthetic-model-a", out)
+        self.assertIn("留存率", out)
+
+    @unittest.skipUnless(_ecdsa_available(), ECDSA_REQUIRED)
+    def test_report_has_no_non_gbk_characters(self):
+        result = self._run_cli(["--synthetic", "--by-model"])
+        self.assertEqual(result.returncode, 0)
+        out = result.stdout.decode("utf-8", errors="replace")
+        # U+26A0（⚠）等装饰字符在 GBK 下无法编码，正文必须改用 [警示]
+        self.assertNotIn("\u26a0", out)
+        self.assertIn("[警示]", out)
+        # 正则扫：正文中所有字符都能被 GBK 编码（中文本身在 GBK 内，允许）
+        bad = [repr(ch) for ch in out if not self._gbk_encodable(ch)]
+        self.assertEqual(bad, [])
+
+    def test_json_output_stays_utf8_under_gbk_env(self):
+        # 最小存档 + --json：不依赖 ecdsa，GBK 环境也要能写出标准 UTF-8 JSON
+        path = write_tmp(make_archive([make_block(0, tokens=0, model_metadata="genesis"),
+                                       make_block(1, activation=["a"], model_metadata="manual-mock")]))
+        with tempfile.TemporaryDirectory(prefix="analyze_gbk_json_") as tmpdir:
+            out = os.path.join(tmpdir, "metrics.json")
+            result = self._run_cli([path, "--by-model", "--json", out])
+            self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", errors="replace"))
+            self.assertTrue(os.path.exists(out))
+            # 必须能用 UTF-8 直接读回并解析（GBK 编码的伪 UTF-8 会在这里解码失败/乱码）
+            with open(out, "r", encoding="utf-8") as handle:
+                doc = json.load(handle)
+            self.assertIn("by_model", doc)
+            self.assertEqual(doc["by_model"]["models"][0]["model_id"], "manual-mock")
+            self.assertIn("跨 AI 创造力指标", result.stdout.decode("utf-8", errors="replace"))
+
+    def test_main_tolerates_stringio_stdout(self):
+        # 既有测试用 redirect_stdout(StringIO()) 调 main：StringIO 无 reconfigure，
+        # 入口的编码容错必须优雅降级（AttributeError 分支），不能把测试模式打破
+        path = write_tmp(make_archive([make_block(0, tokens=0), make_block(1, activation=["a"])]))
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = analyze_chain.main([path, "--compact"])
+        self.assertEqual(code, 0)
+        self.assertIn("高度", buffer.getvalue())
 
 
 if __name__ == "__main__":

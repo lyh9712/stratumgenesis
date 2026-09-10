@@ -19,20 +19,27 @@ StratumGenesis 的「语言演化实验」过去只靠人眼读存档。存档�
 ## 2. 运行方式与数据来源
 
 ```
-python analyze_chain.py <存档或导出 JSON> [--verify] [--json <输出>] [--compact]
-python analyze_chain.py --synthetic [--json <输出>]      # 内存合成链演示
-python analyze_chain.py [--json <输出>]                  # 无存档：提示 + 合成链，退出码 0
+python analyze_chain.py <存档或导出 JSON> [--verify] [--by-model] [--json <输出>] [--compact]
+python analyze_chain.py --synthetic [--by-model] [--json <输出>]   # 内存合成链演示
+python analyze_chain.py [--by-model] [--json <输出>]               # 无存档：提示 + 合成链，退出码 0
 ```
 
-- `--verify` 与 `--verify-hashes` 是**等价旗标**（后者为别名，为兼容既有文档与
+- `--verify` 与 `--verify-hashes` 是**等价旗标**（`--verify` 为正名，后者为别名，为兼容既有文档与
   自动化脚本保留）。两者的行为完全一致：调用 `persistence.load_state` 做逐块
   哈希 + 签名重验，通过 exit 0，未通过 exit 1。分析器**没有** `--verify-hashes`
   之外的其他变体，`--help`、本脚本 docstring 与本文档三处一致。
+- `--by-model`：**跨 AI 创造力指标**（接受与产出 / 引种留存率与半衰期 / 原语偏好 /
+  组合新颖度 / 分工与协作），详见 §4.5。控制台仅在带该旗标时输出小节；
+  机器可读 JSON 恒含 `by_model` 分区（键名稳定，供工具链直接消费）。
 - **无位置参数 = 已批准的演示路径，不是「参数被忽略」**。省略存档路径时，
   分析器打印一行中文提示，改用内存合成链（跨 3 个纪元）跑完整指标，**退出码仍为 0**。
   这是被明确接受的行为；自动化调用方如果依赖退出码区分「跑真实存档」与「跑演示」，
   请检查输出里的 `source.label`（`"合成链（无存档模式）"`）与 `source.path`
   （`"(内存合成链)"`），不要仅凭退出码判断。
+- **无参回退与 `--synthetic` 需要 ecdsa 可用**：合成链构造走 `crypto_key` 真实签名。
+  本机缺少 ecdsa 时打印中文可执行提示（`python -m pip install ecdsa`，或用已装
+  ecdsa 的解释器如 `py -3.13`）并以**非零码退出**，绝不冒原始 `ImportError` 英文栈。
+  对真实存档路径的分析不依赖 ecdsa（账本重放失败时自动降级并标注）。
 
 两条数据来源，都是只读：
 
@@ -68,6 +75,7 @@ python analyze_chain.py [--json <输出>]                  # 无存档：提示 
 | 指标类别 | 来源字段 |
 |---|---|
 | 语言演化 | `blocks[].activation`、`blocks[].height` |
+| 跨 AI 创造力（--by-model） | `blocks[].poi.model_metadata` + 语言演化字段；接受/产出另含 `sleeping_branches[].blocks[]` |
 | 链与共识 | 上述 + `blocks[].miner_pubkey_b64`、`blocks[].block_hash`、`sleeping_branches[].branch_id`、`sleeping_branches[].blocks[]`、`rejection_reasons`、`miners[]` |
 | 账本 | `blocks[]` 全量（经 `persistence.rebuild_store` 确定性重放）+ `miners[]` |
 | PoI | `blocks[].poi.standard_total_tokens`、`standard_input_tokens`、`standard_output_tokens`、`standard_tokenizer` |
@@ -155,6 +163,43 @@ python analyze_chain.py [--json <输出>]                  # 无存档：提示 
 | 仅主链（剔除创世块） | `height > 0` 子集的块数、总量、均值 | 同上 |
 | 输入/输出词元合计 | `standard_input_tokens` / `standard_output_tokens` 求和 | 同上 |
 | 分词器标识分布 | 按 `standard_tokenizer` 分组的块数，及其中含词元的块数 | 同上 |
+
+### 4.5 跨 AI 创造力指标（--by-model）⚠️ 样本量警示
+
+背景：项目要让每个参与者带自己的 AI 出提案，然后比较不同 AI 的创造力。
+`blocks[].poi.model_metadata` 是既有字段（真实链目前全为 `"manual-mock"`），
+因此本指标**零后端改动**，全部从存档推导。
+
+模型身份：`blocks[].poi.model_metadata`；空/缺失归入 `"(未标注)"`；
+创世块（model_metadata=`"genesis"`）不构成任何模型身份。
+
+| 指标 | 定义与口径 | 来源字段 |
+|---|---|---|
+| 提案数 / 主链接受数 / 落选数 | 该模型的提案 = 其主链非创世块数 + 休眠分支区块数；接受 = 主链非创世块；落选 = 休眠分支区块 | `blocks[]`、`sleeping_branches[].blocks[]` |
+| 接受率 | 接受数 ÷ 提案数；分母为 0 时返回 `None`（无样本，与 `_rate` 全库口径一致） | 同上 |
+| 首次激活特性 | 全局首次出现在 `blocks[].activation` 的原语，且首次出现块的模型身份 = 该模型 | `blocks[].activation` + `poi.model_metadata` |
+| 引种事件数 | 该模型首次激活的每个特性，在**更晚纪元**（主链）再次出现的（特性 × 纪元）对数 | 同上 |
+| 半衰期估计 | 特性级：`span_epochs = 最后一次被引种纪元 − 首次激活纪元`（从未被引种为 0）；模型级：各特性 `span_epochs` 的**中位数**（`half_life_epochs`），并附均值/最小/最大 | 同上 |
+| 未引种纪元数 | 特性级 `silent_epochs_since_first = (链末纪元 − 首次激活纪元) − 首次之后被引种的纪元数`（即首次激活后未出现的纪元数） | 同上 |
+| 原语使用偏好 | 每模型各原语出现的主链块数（块内去重），附含激活块数与前 6 项排序 | 同上 |
+| 组合新颖度 | 每模型首次使用的「原语组合」（排序后的激活集合）；若该组合在全局主链历史中**首次**出现（`global_first_model == 该模型`），记为新颖 | 同上 |
+| 分工与协作 | 矿工(公钥)→模型集合：`miners_with_multiple_models`（同一矿工挂 ≥2 个模型）；模型→矿工集合：`models_used_by_multiple_miners`（同一模型被 ≥2 名矿工使用）；仅主链 | `blocks[].miner_pubkey_b64` + `poi.model_metadata` |
+
+**⚠️ 样本量警示（必须如实引用）**：`feature_count < 5` 时 `sample_size_warning=true`，
+报告与 `warnings` 同时标注「仅为估计，需谨慎解读」。当前合成链每模型只有 1~3 个
+首次激活特性，真实预沉积链更是 0 个——任何跨模型排名都只能当演示，不能当结论。
+
+**「n/a」是设计内的合法状态，不是缺陷**：当模型没有任何首次激活特性时（如
+`synthetic-model-c`、真实链的 `manual-mock`），`retention.features_first_activated`
+为空、`half_life_epochs` 为 `None`（渲染为「—」），同时 `sample_size_warning=true`。
+这是真实链上的常见形态（预沉积链全部特性为零），分析器如实报告而不是编造留存率。
+**禁止为使报告好看而放宽既有语言指标断言、或给无特性模型伪造首次激活记录**——
+任何此类「美化」都会污染数据口径，复验时按伪造数据处理。
+
+**语义阶段标注（同 §5）**：「引种」沿用「该原语在更早纪元出现过」的临时口径，
+不是阶段 D 的协议级引种提案；本小节指标在阶段 D 落地后需按新语义复核。
+语言类指标只扫主链；休眠分支只参与接受/产出统计，不参与留存/偏好/新颖度。
+
 
 ---
 
@@ -404,6 +449,46 @@ ECDSA 后端    : python-ecdsa
 `blocks[].activation` 全为空数组），不是分析器的读取错误。这类存档的价值在于
 链与共识、账本、PoI 三组指标，而不是语言演化。
 
+### 7.3 跨 AI 创造力指标（--by-model）
+
+```
+$ python analyze_chain.py --synthetic --by-model
+```
+
+```text
+------------------------------------------------------------------------------
+⑤ 跨 AI 创造力指标（来源 blocks[].poi.model_metadata；语言口径仅主链）
+------------------------------------------------------------------------------
+  模型 synthetic-model-a（矿工 1 名：矿工·A）
+    接受与产出 : 提案 69 | 主链接受 69 | 落选 0 | 接受率 100.0%
+    引种留存率 : 首次激活特性 1 个（-） | 引种事件 1 | 半衰期估计 1.0 纪元
+      -      首激活 纪元0(H1) → 最后引种 纪元 1 | 跨度 1 纪元 | 未引种纪元 1
+      ⚠ 样本量 < 5，留存率/半衰期仅为估计，需谨慎解读
+    原语偏好   : 含激活主链块 2 块 | -×2
+    组合新颖度 : 首次激活组合 1 个，全局首次出现 1 / 非首次 0
+  模型 synthetic-model-b（矿工 1 名：矿工·B）
+    接受与产出 : 提案 69 | 主链接受 68 | 落选 1 | 接受率 98.6%
+    引种留存率 : 首次激活特性 3 个（*, head, list） | 引种事件 0 | 半衰期估计 0.0 纪元
+      *      首激活 纪元1(H101) → 最后引种 无 | 跨度 0 纪元 | 未引种纪元 1
+      head   首激活 纪元0(H2) → 最后引种 无 | 跨度 0 纪元 | 未引种纪元 2
+      list   首激活 纪元0(H2) → 最后引种 无 | 跨度 0 纪元 | 未引种纪元 2
+      ⚠ 样本量 < 5，留存率/半衰期仅为估计，需谨慎解读
+    原语偏好   : 含激活主链块 2 块 | *×1、head×1、list×1
+    组合新颖度 : 首次激活组合 2 个，全局首次出现 2 / 非首次 0
+  模型 synthetic-model-c（矿工 1 名：矿工·C）
+    接受与产出 : 提案 68 | 主链接受 68 | 落选 0 | 接受率 100.0%
+    引种留存率 : 首次激活特性 0 个（—） | 引种事件 0 | 半衰期估计 — 纪元
+    原语偏好   : 含激活主链块 0 块 | —
+    组合新颖度 : 首次激活组合 0 个，全局首次出现 0 / 非首次 0
+  分工与协作 :
+      多模型矿工 = 0 名（无矿工同时挂 ≥2 个模型身份）
+      多矿工模型 = 0 个（无模型被 ≥2 名矿工共用）
+```
+
+合成剧情：A 的特性 `-` 在纪元 1 被引种（跨度 1 纪元），B 的 `head/list/*` 全部被
+遗忘（跨度 0），C 无首次激活特性（n/a）——三套留存形态一次演示。真实存档场景
+见 §8 的 by-model 限制（当前真实链只有 `manual-mock` 单模型）。
+
 ---
 
 ## 8. 未做与已知局限
@@ -423,6 +508,13 @@ ECDSA 后端    : python-ecdsa
   `block_hash` 不含签名带来的盲区：只改签名的存档能通过哈希校验，但签名重验会失败。
   已实测：篡改 height=42 的签名后 `--verify` 报「签名校验失败（height=42）」并 exit 1。
 - **无真实 LLM、无真实网络、样本量小**，详见第 6 节。
+- **by-model 的现实限制**：真实预沉积/提案链的 `poi.model_metadata` 目前全是
+  `"manual-mock"`，因此真实存档只会得到**单模型退化报告**（如 §7.3 示例：
+  1 个模型、3 名矿工共用）；跨模型对比必须先让不同参与者用不同
+  `model_metadata` 出块（链侧字段已支持，后端零改动）。
+- **半衰期是启发式估计**：`half_life_epochs` 取各特性「首次激活 → 最后被引种
+  纪元跨度」的中位数，跨度 0 表示从未被引种；`feature_count < 5` 时只标注
+  「仅为估计」，不得作为跨模型排名结论（见 §4.5 样本量警示）。
 - **未生成图表**。`--json` 输出键名已保持稳定（`schema.schema_version = 1`），
   便于后续接画图工具，但本线不做可视化。
 
@@ -434,7 +526,39 @@ ECDSA 后端    : python-ecdsa
 |---|---|
 | `analyze_chain.py` | 离线链分析器（CLI + 指标计算 + 报告渲染） |
 | `EXPERIMENT_METRICS.md` | 本文档：指标定义、计算口径、来源字段、运行示例、发布建议 |
-| `tests/test_analyze_chain.py` | 37 个测试用例，覆盖合成链指标、边界、错误处理、依赖边界、`--verify` 与篡改检测、缺依赖跳过、无参数回退 |
+| `tests/test_analyze_chain.py` | 58 个测试用例（其中 26 项需 ecdsa 依赖：合成链指标 11 + 验签/篡改 5 + 无参回退 exit0 1 + --synthetic exit0 1 + 合成链 by-model 6 + GBK 控制台合成链 2），覆盖合成链指标、边界、错误处理、依赖边界、`--verify` 与篡改检测、缺依赖跳过与中文提示、无参数回退、跨 AI 创造力指标（by-model）、GBK 控制台安全（含 --json UTF-8 不变性） |
+
+缺 ecdsa 依赖时（如未装 ecdsa 的解释器）：依赖项经 `@unittest.skipUnless` 跳过，
+其余用例全绿，**0 失败 0 错误**；无参回退与 `--synthetic` 打印中文可执行提示并以
+非零码退出（见 §2 与 §8）。
+
+---
+
+## 10. 测试与复验纪律（含一次教训）
+
+**教训（必须记住）**：自检脚本曾因**漏传参数**产生过「假证据」——例如应带 `--verify`
+却只跑了默认分析、应带 `--json` 却只看了控制台，命令「跑完且退出码 0」不等于
+「验证了目标行为」。由此确立复验纪律：
+
+1. 每个自检项必须**逐项核对**：CLI 参数齐全、退出码符合预期、关键输出行与文件
+   内容都断言到，不以「命令跑完」为通过依据。
+2. 测试用例必须**同时断言行为与副作用**：如 `--verify` 不仅要 exit 0，还要断言
+   校验消息出现；`--json` 不仅要写出文件，还要读回并断言关键键。
+3. 合成/演示与真实数据要**显式区分**：以 `source.label` / `source.path` 为准，
+   不凭退出码猜（无参回退 exit 0 是已批准行为）。
+4. 缺依赖场景用**可复现的临时屏蔽**验证（如临时 `sys.meta_path` 屏蔽 ecdsa 的
+   一次性脚本），验证后不把屏蔽逻辑落进正式代码。
+5. **控制台编码先问再验**：本项目在 Windows 默认 GBK 代码页上运行。曾出现
+   `--by-model` 报告含 U+26A0（⚠）导致 `'gbk' codec can't encode` 崩溃（exit 1）
+   ——已修复为「入口 `sys.stdout/stderr.reconfigure(encoding="utf-8", errors="replace")`
+   + 报告正文改用纯 GBK 安全表达（`⚠` → `[警示]`）」；`--json` 文件仍显式写
+   UTF-8，不受控制台编码影响。复验任何 CLI 输出前，先想清楚目标终端编码：
+   GBK 终端验证用 `PYTHONIOENCODING=gbk` 强制环境 + 断言 exit 0 / 无
+   `codec can't encode`，并正则扫描输出确认无 GBK 不可编码字符。
+
+控制台编码说明：本机为 Windows 默认 GBK 代码页，上述所有自检（含本节）均在
+UTF-8 容错 + 字符替换后的状态下通过；GBK 强制环境下的专项验证见
+`GbkConsoleSafetyTest`（subprocess + `PYTHONIOENCODING=gbk`，4 项）。
 
 未修改任何既有文件；未执行任何 git add / commit；未改动或删除 `data/` 与
 `data/chain_v1.json`；未启动 HTTP 服务、未占用端口 28417。

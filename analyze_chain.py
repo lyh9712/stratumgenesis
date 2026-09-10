@@ -5,13 +5,21 @@
 
 用法
 ----
-    python analyze_chain.py <存档或导出 JSON> [--verify] [--json out.json]
-    python analyze_chain.py --synthetic [--json out.json]
-    python analyze_chain.py [--json out.json]          # 无存档：提示 + 内存合成链演示，退出码 0
+    python analyze_chain.py <存档或导出 JSON> [--verify] [--by-model] [--json out.json]
+    python analyze_chain.py --synthetic [--by-model] [--json out.json]
+    python analyze_chain.py [--by-model] [--json out.json]   # 无存档：提示 + 内存合成链演示，退出码 0
 
 无位置参数时的行为（已被监督者接受，自动化调用方请勿当作「参数被忽略」）：
 分析器打印一行中文提示，改用内存合成链（跨 3 个纪元）跑完整指标，退出码仍为 0。
 区分演示与真实数据看 source.label（"合成链（无存档模式）"）与 source.path。
+
+[警示] 无参回退与 --synthetic 需要本机 ecdsa 可用才能 exit 0（合成链构造要走
+crypto_key 真实签名）。缺少 ecdsa 时打印中文可执行提示（pip install ecdsa /
+用已装 ecdsa 的解释器如 py -3.13）并以非零码退出，绝不打印原始 ImportError 英文栈。
+
+--by-model：跨 AI 创造力指标（每个参与者带自己的 AI 出提案的比较实验）。
+数据全部来自 blocks[].poi.model_metadata + blocks[].activation + height // 100，
+零后端改动；语言类指标仅主链，接受/产出统计含休眠分支（详见 EXPERIMENT_METRICS.md）。
 
 签名重验
 --------
@@ -25,7 +33,7 @@ warnings；绝不用手写实现冒充真实验签。
 --------------------
 全部指标只从 blocks[] 的稳定字段推导：
     blocks[].activation / blocks[].height / blocks[].epoch
-    blocks[].poi.standard_* / blocks[].transactions
+    blocks[].poi.standard_* / blocks[].poi.model_metadata / blocks[].transactions
     blocks[].proposer / blocks[].miner_pubkey_b64 / blocks[].block_hash
 纪元粒度：epoch = height // 100（与 epoch_manager.EPOCH_BLOCKS 一致）。
 
@@ -63,6 +71,16 @@ BACKEND_UNAVAILABLE = "unavailable"            # 本机缺少 ecdsa：不验签�
 VERIFY_SKIPPED_NO_ECDSA = "skipped_no_ecdsa"   # --json 中 signature_verification 的取值
 VERIFY_ENABLED = "enabled"
 
+# 缺 ecdsa 时的中文可执行提示（无参回退 / --synthetic / 验签共用）。
+MISSING_ECDSA_HINT = (
+    "本机缺少 ecdsa 依赖：请先执行 `python -m pip install ecdsa`，"
+    "或用已安装 ecdsa 的解释器运行（例如 `py -3.13`；无参回退与 --synthetic "
+    "需要 ecdsa 可用才能正常演示并以 exit 0 结束）。"
+)
+
+# 引种留存率的样本量警示阈值：低于该值只出「估计」，并显式提示谨慎解读。
+SAMPLE_SIZE_WARNING_THRESHOLD = 5
+
 
 def detect_signature_backend() -> str:
     """探测签名重验后端；不注入 sys.modules，不引入任何手写 ECDSA 实现。
@@ -79,10 +97,22 @@ def detect_signature_backend() -> str:
 
 ECDSA_BACKEND = detect_signature_backend()
 
+
+def require_ecdsa_for_synthetic() -> None:
+    """构造/重放合成链前检查 ecdsa 可用性（构造要走 crypto_key 真实签名）。
+
+    缺失时抛 AnalysisError（含中文可执行提示），由 CLI 打印 [错误] 并以非零码
+    退出；绝不让 import crypto_key 的原始 ImportError 英文栈直接冒到用户面前。
+    纯函数、可单测（测试里通过临时改写 ECDSA_BACKEND 模拟缺失）。
+    """
+    if ECDSA_BACKEND == BACKEND_UNAVAILABLE:
+        raise AnalysisError(MISSING_ECDSA_HINT)
+
 DERIVED_FROM = (
     "blocks[].activation", "blocks[].height",
     "blocks[].poi.standard_input_tokens", "blocks[].poi.standard_output_tokens",
     "blocks[].poi.standard_total_tokens", "blocks[].poi.standard_tokenizer",
+    "blocks[].poi.model_metadata",
     "blocks[].transactions", "blocks[].proposer", "blocks[].miner_pubkey_b64",
     "blocks[].block_hash",
     "sleeping_branches[].branch_id", "sleeping_branches[].blocks[]",
@@ -217,6 +247,7 @@ def _block_view(entry: Any, where: str) -> dict:
         "proposer": str(entry.get("proposer") or ""),
         "proposal_kind": str(proposal.get("kind") or ""),
         "activation": [str(item) for item in activation],
+        "model_metadata": str(poi.get("model_metadata") or ""),
         "poi_total_tokens": total_tokens,
         "poi_input_tokens": input_tokens,
         "poi_output_tokens": output_tokens,
@@ -235,11 +266,25 @@ def _block_view(entry: Any, where: str) -> dict:
 #   纪元 2 (height 200..)   首块不引种              -> 制造「失忆」
 # 全程走既有 ChainStore.append_main 的真实追加路径（含纪元首块重置），
 # 因此生成的 JSON 与 server.py 导出的 chain-v2 格式完全一致。
+#
+# 模型身份（--by-model 演示剧情，v0.3 线③扩展）：
+#   矿工·A 挂 synthetic-model-a：激活 -  （纪元 0），纪元 1 首块被其引种 -> 「A 的特性被引种」
+#   矿工·B 挂 synthetic-model-b：激活 list/head（纪元 0）、*（纪元 1），全被遗忘 -> 「B 的被遗忘」
+#   矿工·C 挂 synthetic-model-c：只出普通块，无首次激活特性（演示单模型退化/n/a 路径）
 # ============================================================================
 _SYNTHETIC_MINERS = (("矿工·A",),)  # 占位；实际密钥在 build_synthetic_chain 内生成
 
 
-def _synth_poi(feature_id: str, description: str, demo: str, tests, pad: int = 3) -> Any:
+# 矿工 -> 模型身份的确定性映射（每个参与者带自己的 AI）。
+SYNTHETIC_MODELS = {
+    "矿工·A": "synthetic-model-a",
+    "矿工·B": "synthetic-model-b",
+    "矿工·C": "synthetic-model-c",
+}
+
+
+def _synth_poi(feature_id: str, description: str, demo: str, tests, pad: int = 3,
+               model_metadata: str = "synthetic-mock") -> Any:
     """生成一条 mock 标准分词的 PoI 记录（不依赖真实 LLM）。"""
     import block_model
     import mock_tokenizer
@@ -248,19 +293,20 @@ def _synth_poi(feature_id: str, description: str, demo: str, tests, pad: int = 3
     output = demo + " " + " ".join(t.program for t in tests) + " reasoning token " * pad
     counts = mock_tokenizer.count_poi_tokens(prompt, output)
     return block_model.PoiRecord(
-        "synthetic-mock", prompt, output, mock_tokenizer.MOCK_TOKENIZER_ID,
+        model_metadata, prompt, output, mock_tokenizer.MOCK_TOKENIZER_ID,
         counts.standard_input_tokens, counts.standard_output_tokens, counts.standard_total_tokens,
     )
 
 
 def _synth_block(store, private_key: bytes, public_key: bytes, label: str,
                  feature_id: str, description: str, demo: str, tests,
-                 activation: tuple[str, ...], pad: int = 3) -> Any:
+                 activation: tuple[str, ...], pad: int = 3,
+                 model_metadata: str = "synthetic-mock") -> Any:
     """构造并签名一个候选区块（含合法 PoI），返回已签名 Block。"""
     import block_model
     import crypto_key
 
-    poi = _synth_poi(feature_id, description, demo, tests, pad)
+    poi = _synth_poi(feature_id, description, demo, tests, pad, model_metadata)
     proposal = block_model.Proposal(feature_id, description, demo, tests, kind="extension")
     unsigned = block_model.Block(
         store.height + 1, store.tip.block_hash, label, proposal, poi,
@@ -276,6 +322,10 @@ def build_synthetic_chain() -> dict:
     只读复用既有模块：block_model / chain_store / crypto_key / mock_tokenizer /
     persistence.serialize_state。不启动 HTTP 服务，不读写 data/。
     """
+    # 缺 ecdsa 时在这里就给出中文可执行提示（非零退出），而不是冒英文栈；
+    # 必须在任何 import crypto_key 之前判定（crypto_key 顶层依赖 ecdsa）。
+    require_ecdsa_for_synthetic()
+
     import block_model
     import chain_store
     import crypto_key
@@ -292,7 +342,8 @@ def build_synthetic_chain() -> dict:
     filler_demo = "(+ 1 2)"
     filler_tests = (block_model.TestCase("(+ 1 2)", 3),)
 
-    # 确定性轮换：区块 i 由矿工 (i % 3) 签署，保证三个矿工都有产出。
+    # 确定性轮换：区块 i 由矿工 (i % 3) 签署，保证三个矿工都有产出；
+    # 每个矿工带的模型身份固定（SYNTHETIC_MODELS），写入 poi.model_metadata。
     miner_cursor = 0
 
     def add(feature_id: str, description: str, demo: str, tests,
@@ -301,7 +352,8 @@ def build_synthetic_chain() -> dict:
         label, private_key, public_key = identities[miner_cursor % len(identities)]
         miner_cursor += 1
         block = _synth_block(store, private_key, public_key, label,
-                             feature_id, description, demo, tests, activation, pad)
+                             feature_id, description, demo, tests, activation, pad,
+                             model_metadata=SYNTHETIC_MODELS[label])
         store.append_main(block)
         return block
 
@@ -326,11 +378,12 @@ def build_synthetic_chain() -> dict:
     while store.height < 205:
         add(f"填充原语-{store.height + 1}", "普通内核区块", filler_demo, filler_tests, pad=1)
 
-    # ---- 一个休眠分支：与主链同一父区块的落选候选 ----
+    # ---- 一个休眠分支：与主链同一父区块的落选候选（模型身份：矿工·B）----
     loser = _synth_block(
         store, identities[1][1], identities[1][2], identities[1][0],
         "乘法原语(落选)", "在纪元 2 引种 -", "(- 5 2)",
         (block_model.TestCase("(- 5 2)", 3),), activation=("-",),
+        model_metadata=SYNTHETIC_MODELS["矿工·B"],
     )
     store.add_sleeping_branch(loser)
 
@@ -714,6 +767,225 @@ def analyze_poi(data: dict) -> dict:
 
 
 # ============================================================================
+# 5.5) 跨 AI 创造力指标（--by-model）
+# ============================================================================
+def _branch_views(data: dict) -> list[dict]:
+    """收集休眠分支内全部区块的规范化视图（只读，顺序无关紧要）。"""
+    views: list[dict] = []
+    branches = data.get("sleeping_branches")
+    if not isinstance(branches, list):
+        return views
+    for branch in branches:
+        if not isinstance(branch, dict):
+            continue
+        entries = branch.get("blocks")
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            views.append(_block_view(entry, "sleeping_branches[].blocks[]"))
+    return views
+
+
+def _model_id(block: dict) -> str:
+    """模型身份归一化：空/缺失 -> "(未标注)"；创世锚点由调用方排除。"""
+    return block["model_metadata"] or "(未标注)"
+
+
+def analyze_by_model(data: dict) -> dict:
+    """跨 AI 创造力指标：按 blocks[].poi.model_metadata 分组。
+
+    数据来源纪律（与全文件一致）：
+      - 语言类指标（留存率/半衰期/原语偏好/组合新颖度）只扫描主链
+        blocks[].activation + height // 100；
+      - 接受与产出统计含休眠分支（落选提案 = 休眠分支区块），创世块不计提案；
+      - 模型身份来自 blocks[].poi.model_metadata，空值归入 "(未标注)"；
+        创世块（model_metadata="genesis"）不构成任何模型身份。
+
+    指标精确定义见 EXPERIMENT_METRICS.md §4.5（含样本量警示）。
+    """
+    main = [_block_view(block, "blocks[]") for block in data["blocks"]]
+    branches = _branch_views(data)
+    labels = _miner_labels(data.get("miners"))
+
+    # 创世块不计入任何模型身份；其余主链非创世块 = 被接受的提案。
+    main_proposals = [b for b in main if b["height"] > 0]
+
+    model_ids: set[str] = set()
+    for block in main_proposals + branches:
+        model_ids.add(_model_id(block))
+
+    # ---- 主链单遍扫描：首次激活 / 出现纪元 / 组合首见 / 矿工-模型关联 ----
+    first_activation: dict[str, dict] = {}          # 原语 -> {height, epoch, model}
+    present_epochs: dict[str, set[int]] = {}        # 原语 -> 出现过的纪元集合
+    combo_first_seen: dict[tuple, dict] = {}        # 排序组合 -> {height, epoch, model}
+    combo_first_by_model: dict[str, dict] = {}      # 模型 -> 组合 -> 该模型首用高度
+    primitive_blocks: dict[str, dict[str, int]] = {}  # 模型 -> 原语 -> 出现块数
+    activation_blocks: dict[str, int] = {}          # 模型 -> 含激活的主链块数
+    miner_models: dict[str, set[str]] = {}          # 矿工(b64) -> 模型集合
+    model_miners: dict[str, set[str]] = {}          # 模型 -> 矿工(b64) 集合
+
+    for block in main:
+        if block["height"] == 0:
+            continue  # 创世锚点不构成模型身份
+        model = _model_id(block)
+        miner = block["miner_pubkey_b64"] or "unknown"
+        miner_models.setdefault(miner, set()).add(model)
+        model_miners.setdefault(model, set()).add(miner)
+        names = block["activation"]
+        if not names:
+            continue
+        activation_blocks[model] = activation_blocks.get(model, 0) + 1
+        pref = primitive_blocks.setdefault(model, {})
+        combo = tuple(sorted(set(names)))
+        if combo not in combo_first_seen:
+            combo_first_seen[combo] = {
+                "height": block["height"], "epoch": block["epoch"], "model": model,
+            }
+        combo_first_by_model.setdefault(model, {}).setdefault(combo, block["height"])
+        for name in sorted(set(names)):
+            pref[name] = pref.get(name, 0) + 1
+            present_epochs.setdefault(name, set()).add(block["epoch"])
+            if name not in first_activation:
+                first_activation[name] = {
+                    "height": block["height"], "epoch": block["epoch"], "model": model,
+                }
+
+    last_epoch = main[-1]["epoch"] if main else 0
+
+    # ---- 接受与产出（含休眠分支）----
+    accepted: dict[str, int] = {mid: 0 for mid in model_ids}
+    rejected: dict[str, int] = {mid: 0 for mid in model_ids}
+    main_chain_blocks: dict[str, int] = {mid: 0 for mid in model_ids}
+    for block in main_proposals:
+        model = _model_id(block)
+        accepted[model] = accepted.get(model, 0) + 1
+        main_chain_blocks[model] = main_chain_blocks.get(model, 0) + 1
+    for block in branches:
+        model = _model_id(block)
+        rejected[model] = rejected.get(model, 0) + 1
+
+    # ---- 引种留存率 / 半衰期（仅主链）----
+    features_by_model: dict[str, list[dict]] = {mid: [] for mid in model_ids}
+    for primitive, info in sorted(first_activation.items()):
+        model = info["model"]
+        reintro_epochs = sorted(
+            epoch for epoch in present_epochs.get(primitive, set()) if epoch > info["epoch"]
+        )
+        last_reintro = reintro_epochs[-1] if reintro_epochs else None
+        span = (last_reintro - info["epoch"]) if reintro_epochs else 0
+        epochs_since_first = max(last_epoch - info["epoch"], 0)
+        silent = max(epochs_since_first - len(reintro_epochs), 0)
+        features_by_model[model].append({
+            "primitive": primitive,
+            "first_height": info["height"],
+            "first_epoch": info["epoch"],
+            "reintroduction_count": len(reintro_epochs),
+            "last_reintroduction_epoch": last_reintro,
+            "span_epochs": span,
+            "epochs_since_first": epochs_since_first,
+            "silent_epochs_since_first": silent,
+        })
+
+    # ---- 组装每个模型的分区 ----
+    models = []
+    for model in sorted(model_ids):
+        features = features_by_model.get(model, [])
+        spans = [item["span_epochs"] for item in features]
+        retention = {
+            "features_first_activated": sorted(item["primitive"] for item in features),
+            "feature_count": len(features),
+            "reintroduction_events": sum(item["reintroduction_count"] for item in features),
+            "half_life_epochs": median(spans) if spans else None,
+            "mean_span_epochs": mean(spans) if spans else None,
+            "span_epochs_min": min(spans) if spans else None,
+            "span_epochs_max": max(spans) if spans else None,
+            "features": features,
+            "sample_size_warning": len(features) < SAMPLE_SIZE_WARNING_THRESHOLD,
+        }
+        pref = primitive_blocks.get(model, {})
+        combos = combo_first_by_model.get(model, {})
+        combo_records = []
+        novel_count = 0
+        for combo, first_height in sorted(combos.items(), key=lambda item: item[1]):
+            first = combo_first_seen[combo]
+            novel = first["model"] == model
+            novel_count += int(novel)
+            combo_records.append({
+                "combination": list(combo),
+                "first_activated_by_this_model_height": first_height,
+                "globally_first_seen": novel,
+                "global_first_height": first["height"],
+                "global_first_model": first["model"],
+            })
+        miners_of_model = sorted(model_miners.get(model, set()))
+        models.append({
+            "model_id": model,
+            "miners": [{
+                "miner_pubkey_b64": miner,
+                "label": _label_of(miner, labels),
+            } for miner in miners_of_model],
+            "miner_count": len(miners_of_model),
+            "acceptance": {
+                "proposals": accepted.get(model, 0) + rejected.get(model, 0),
+                "accepted_to_main": accepted.get(model, 0),
+                "rejected_to_sleeping_branch": rejected.get(model, 0),
+                "main_chain_blocks": main_chain_blocks.get(model, 0),
+                "sleeping_branch_blocks": rejected.get(model, 0),
+                "acceptance_rate": _rate(
+                    accepted.get(model, 0),
+                    accepted.get(model, 0) + rejected.get(model, 0),
+                ),
+            },
+            "retention": retention,
+            "primitive_preference": {
+                "activation_blocks": activation_blocks.get(model, 0),
+                "primitives": dict(sorted(pref.items())),
+                "top_primitives": sorted(pref.items(), key=lambda item: (-item[1], item[0])),
+            },
+            "combination_novelty": {
+                "combinations_first_activated": combo_records,
+                "novel_count": novel_count,
+                "non_novel_count": len(combo_records) - novel_count,
+            },
+        })
+
+    # ---- 分工与协作（矿工 <-> 模型 的挂载关系，仅主链）----
+    miners_with_multiple_models = sorted(
+        ({"miner_pubkey_b64": miner, "label": _label_of(miner, labels),
+          "models": sorted(models_set)}
+         for miner, models_set in miner_models.items() if len(models_set) > 1),
+        key=lambda item: item["miner_pubkey_b64"],
+    )
+    models_with_multiple_miners = sorted(
+        ({"model_id": model, "miners": sorted(miners_set),
+          "miner_count": len(miners_set)}
+         for model, miners_set in model_miners.items() if len(miners_set) > 1),
+        key=lambda item: item["model_id"],
+    )
+
+    return {
+        "derived_from": [
+            "blocks[].poi.model_metadata", "blocks[].activation", "blocks[].height",
+            "height // 100", "sleeping_branches[].blocks[].poi.model_metadata",
+        ],
+        "scope": {
+            "language_metrics": "仅主链 blocks[].activation（休眠分支不参与留存/偏好/新颖度）",
+            "acceptance": "主链非创世块（接受）+ 休眠分支区块（落选）；创世块不计提案",
+            "collaboration": "仅主链矿工-模型挂载关系",
+            "genesis_excluded": True,
+        },
+        "sample_size_warning_threshold": SAMPLE_SIZE_WARNING_THRESHOLD,
+        "models": models,
+        "collaboration": {
+            "miners_with_multiple_models": miners_with_multiple_models,
+            "multi_model_miner_count": len(miners_with_multiple_models),
+            "models_used_by_multiple_miners": models_with_multiple_miners,
+            "multi_miner_model_count": len(models_with_multiple_miners),
+        },
+    }
+
+
+# ============================================================================
 # 6) 可选完整性校验（逐块哈希 + ECDSA 签名重验）
 # ============================================================================
 def verify_archive(path: str) -> tuple[bool, str]:
@@ -764,17 +1036,29 @@ def _fmt_rate(value: float | None) -> str:
     return "无样本" if value is None else f"{value * 100:.1f}%"
 
 
-def build_report(data: dict, *, source: str, source_label: str) -> tuple[dict, str]:
-    """返回 (机器可读报告, 人类可读文本)。"""
+def build_report(data: dict, *, source: str, source_label: str,
+                 include_by_model: bool = False) -> tuple[dict, str]:
+    """返回 (机器可读报告, 人类可读文本)。
+
+    include_by_model=True 时，控制台文本追加「跨 AI 创造力指标」小节；
+    机器可读 JSON 恒含 by_model 分区（键名稳定，供工具链直接消费）。
+    """
     language = analyze_language(data)
     consensus = analyze_chain_consensus(data)
     ledger = ledger_metrics(data)
     poi = analyze_poi(data)
+    by_model = analyze_by_model(data)
     warnings: list[str] = list(ledger.get("warnings", []))
     if ECDSA_BACKEND == BACKEND_UNAVAILABLE:
         warnings.append("本机缺少 ecdsa 依赖，跳过签名重验（schema.ecdsa_backend=unavailable）")
     if not data.get("blocks"):
         warnings.append("主链为空（无 blocks），所有指标为零值")
+    for model in by_model["models"]:
+        if model["retention"]["sample_size_warning"]:
+            warnings.append(
+                f"模型 {model['model_id']} 的首次激活特性样本量 < "
+                f"{SAMPLE_SIZE_WARNING_THRESHOLD}，留存率/半衰期仅为估计，需谨慎解读"
+            )
 
     report = {
         "schema": {
@@ -798,6 +1082,7 @@ def build_report(data: dict, *, source: str, source_label: str) -> tuple[dict, s
         "chain_consensus": consensus,
         "ledger": ledger,
         "poi": poi,
+        "by_model": by_model,
         "field_provenance": {
             "derived_from": list(DERIVED_FROM),
             "avoided_fields": list(AVOIDED_FIELDS),
@@ -806,11 +1091,11 @@ def build_report(data: dict, *, source: str, source_label: str) -> tuple[dict, s
         "warnings": warnings,
     }
 
-    return report, _render_text(report)
+    return report, _render_text(report, include_by_model=include_by_model)
 
 
-def _render_text(report: dict) -> str:
-    """渲染控制台报告（中文字段名，宽度 78）。"""
+def _render_text(report: dict, *, include_by_model: bool = False) -> str:
+    """渲染控制台报告（中文字段名，宽度 78）；--by-model 时追加跨模型小节。"""
     lines: list[str] = []
     bar = "=" * 78
     sub = "-" * 78
@@ -958,13 +1243,61 @@ def _render_text(report: dict) -> str:
     for name, info in poi["tokenizer_usage"].items():
         lines.append(f"    {name:<20} {info['blocks']:>4} 块（其中 {info['blocks_with_tokens']} 块含词元）")
 
+    if include_by_model:
+        lines.append("")
+        lines.append(sub)
+        lines.append("⑤ 跨 AI 创造力指标（来源 blocks[].poi.model_metadata；语言口径仅主链）")
+        lines.append(sub)
+        by_model = report["by_model"]
+        if not by_model["models"]:
+            lines.append("  模型列表为空（无任何非创世块的模型身份）")
+        for model in by_model["models"]:
+            accept = model["acceptance"]
+            retain = model["retention"]
+            pref = model["primitive_preference"]
+            novel = model["combination_novelty"]
+            miner_text = "、".join(item["label"] for item in model["miners"]) or "—"
+            lines.append(f"  模型 {model['model_id']}（矿工 {model['miner_count']} 名：{miner_text}）")
+            lines.append(f"    接受与产出 : 提案 {accept['proposals']} | 主链接受 {accept['accepted_to_main']} | "
+                         f"落选 {accept['rejected_to_sleeping_branch']} | 接受率 {_fmt_rate(accept['acceptance_rate'])}")
+            half_life = "—" if retain["half_life_epochs"] is None else f"{retain['half_life_epochs']:.1f}"
+            lines.append(f"    引种留存率 : 首次激活特性 {retain['feature_count']} 个"
+                         f"（{_fmt(retain['features_first_activated'], 6)}）"
+                         f" | 引种事件 {retain['reintroduction_events']}"
+                         f" | 半衰期估计 {half_life} 纪元")
+            for feat in retain["features"]:
+                last = feat["last_reintroduction_epoch"]
+                last_text = "无" if last is None else f"纪元 {last}"
+                lines.append(f"      {feat['primitive']:<6} 首激活 纪元{feat['first_epoch']}(H{feat['first_height']})"
+                             f" → 最后引种 {last_text} | 跨度 {feat['span_epochs']} 纪元 | "
+                             f"未引种纪元 {feat['silent_epochs_since_first']}")
+            if retain["sample_size_warning"] and retain["feature_count"] > 0:
+                lines.append(f"      [警示] 样本量 < {by_model['sample_size_warning_threshold']}，"
+                             "留存率/半衰期仅为估计，需谨慎解读")
+            pref_text = "、".join(f"{name}×{count}" for name, count in pref["top_primitives"][:6]) or "—"
+            lines.append(f"    原语偏好   : 含激活主链块 {pref['activation_blocks']} 块 | {pref_text}")
+            lines.append(f"    组合新颖度 : 首次激活组合 {len(novel['combinations_first_activated'])} 个，"
+                         f"全局首次出现 {novel['novel_count']} / 非首次 {novel['non_novel_count']}")
+        collab = by_model["collaboration"]
+        lines.append("  分工与协作 :")
+        if collab["miners_with_multiple_models"]:
+            for item in collab["miners_with_multiple_models"]:
+                lines.append(f"      {item['label']} 挂多模型：{'、'.join(item['models'])}")
+        else:
+            lines.append(f"      多模型矿工 = 0 名（无矿工同时挂 ≥2 个模型身份）")
+        if collab["models_used_by_multiple_miners"]:
+            for item in collab["models_used_by_multiple_miners"]:
+                lines.append(f"      模型 {item['model_id']} 被 {item['miner_count']} 名矿工使用")
+        else:
+            lines.append(f"      多矿工模型 = 0 个（无模型被 ≥2 名矿工共用）")
+
     if report["warnings"]:
         lines.append("")
         lines.append(sub)
-        lines.append("⑤ 注意事项")
+        lines.append("⑥ 注意事项")
         lines.append(sub)
         for warning in report["warnings"]:
-            lines.append(f"  ⚠ {warning}")
+            lines.append(f"  [警示] {warning}")
         lines.append("  注：「引种/失忆」为阶段 D 前的临时口径，"
                      "权威语义以纪元作用域 + 引种提案落地为准（见 EXPERIMENT_METRICS.md）。")
 
@@ -992,26 +1325,43 @@ def _write_json(report: dict, path: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # 入口统一 stdout/stderr 编码：Windows 默认 GBK 代码页无法编码 U+26A0（⚠）等
+    # 装饰字符，reconfigure 为 UTF-8 + errors="replace"，保证任何终端都不因编码崩溃。
+    # --json 文件写入在 _write_json 用显式 encoding="utf-8"，不受 stdout 编码影响。
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            # 测试注入的 StringIO 替换流或已关闭流没有 reconfigure，保持原状
+            pass
     parser = argparse.ArgumentParser(
         description="StratumGenesis 离线链分析器：把链数据变成可复现、可发布的实验指标",
         epilog=(
             "无位置参数时：打印一行中文提示，改用内存合成链（跨 3 个纪元）跑完整指标，"
             "退出码仍为 0。这是已批准的行为，不是「参数被忽略」；"
             "自动化调用方请据 source.label / source.path 区分演示与真实存档。"
-            "\n签名重验：--verify 走 crypto_key.verify_block_signature（与 persistence 同一来源）；"
+            "注意：无参回退与 --synthetic 需要本机 ecdsa 可用才能 exit 0；"
+            "缺少 ecdsa 时打印中文提示并以非零码退出（python -m pip install ecdsa）。"
+            "\n签名重验：--verify（--verify-hashes 为等价别名）走 "
+            "crypto_key.verify_block_signature（与 persistence 同一来源）；"
             "本机缺少 ecdsa 依赖时明确打印跳过提示并在 --json 中标注，不验签、不用手写实现冒充。"
+            "\n--by-model：跨 AI 创造力指标（接受与产出 / 引种留存率与半衰期 / 原语偏好 / "
+            "组合新颖度 / 分工与协作），全部由 blocks[].poi.model_metadata + "
+            "blocks[].activation + height // 100 推导，零后端改动。"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("archive", nargs="?", default=None,
-                        help="存档或导出 JSON 路径（chain-v2）；省略时打印提示并回退到内存合成链，退出码 0")
+                        help="存档或导出 JSON 路径（chain-v2）；省略时打印提示并回退到内存合成链，退出码 0（需 ecdsa 可用）")
     parser.add_argument("--synthetic", action="store_true",
-                        help="使用内存合成链（跨 3 个纪元），不读取任何存档文件")
+                        help="使用内存合成链（跨 3 个纪元，含 3 个模型身份），不读取任何存档文件；需要 ecdsa 可用")
     parser.add_argument("--json", dest="json_out", metavar="PATH", default=None,
                         help="同时输出机器可读 JSON 到指定路径")
     parser.add_argument("--verify", "--verify-hashes", dest="verify", action="store_true",
                         help="读取存档前先用 persistence.load_state 做逐块哈希 + 签名重验；"
-                             "--verify-hashes 是等价别名")
+                             "--verify 为正名，--verify-hashes 是等价别名")
+    parser.add_argument("--by-model", action="store_true",
+                        help="控制台追加输出跨 AI 创造力指标小节（机器可读 JSON 恒含 by_model 分区）")
     parser.add_argument("--compact", action="store_true",
                         help="控制台只输出摘要行（用于 CI/日志）")
     args = parser.parse_args(argv)
@@ -1039,7 +1389,8 @@ def main(argv: list[str] | None = None) -> int:
             print("[提示] 未指定存档路径，回退到内存合成链（不读取任何文件）")
             data = build_synthetic_chain()
 
-        report, text = build_report(data, source=source, source_label=source_label)
+        report, text = build_report(data, source=source, source_label=source_label,
+                                    include_by_model=args.by_model)
 
         if args.json_out:
             _write_json(report, args.json_out)
@@ -1050,7 +1401,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             chain = report["chain"]
             lang = report["language_evolution"]
-            print(
+            line = (
                 f"[摘要] 来源={source_label} 高度={chain['total_height']} "
                 f"区块={chain['main_chain_blocks']} 纪元={chain['epoch_count']} "
                 f"首次激活={lang['first_activation_count']} "
@@ -1058,6 +1409,12 @@ def main(argv: list[str] | None = None) -> int:
                 f"失忆={lang['total_lost_memory_features']} "
                 f"分支={report['chain_consensus']['sleeping_branch_count']}"
             )
+            if report.get("by_model", {}).get("models"):
+                models = report["by_model"]["models"]
+                line += (f" 模型={len(models)}("
+                         + ",".join(f"{m['model_id']}={m['retention']['reintroduction_events']}"
+                                    for m in models) + ")")
+            print(line)
             if args.json_out:
                 print(f"[已写出] 机器可读 JSON -> {args.json_out}")
     except AnalysisError as error:

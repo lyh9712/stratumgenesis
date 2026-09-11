@@ -132,8 +132,8 @@
 
 | 文件 | 用途 |
 |---|---|
-| `LICENSE` | **PolyForm Noncommercial 1.0.0**（禁止商业使用）；含作者署名占位符 |
-| `LICENSE-SCOPE.md` | 中文许可边界：允许项/禁止项/部署者义务/商业授权联络（占位符）/免责重申 |
+| `LICENSE` | **PolyForm Noncommercial 1.0.0**（禁止商业使用）；版权所有人：鹿拾（Yuanhao Lu，https://github.com/luyuanhao） |
+| `LICENSE-SCOPE.md` | 中文许可边界：允许项/禁止项/部署者义务/商业授权联络（GitHub 主页）/免责重申 |
 | `NOTICE` | 署名与性质声明：依赖仅 `ecdsa`(MIT)、非加密货币、无代币、无金融价值 |
 | `README.md` | 仓库门面：一句话定位、30 秒原理、三种上手路径、「它不是什么」、测试命令、许可声明 |
 | `requirements.txt` | 运行时依赖清单：`ecdsa>=0.19`（项目唯一第三方依赖） |

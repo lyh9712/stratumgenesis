@@ -270,8 +270,10 @@
 - `LICENSE`（**PolyForm Noncommercial 1.0.0**，明文禁止商业使用）、
   `LICENSE-SCOPE.md`（中文边界：允许个人/教学/研究/免费公开 hub；禁止收费、订阅、广告变现、
   商业 SaaS；部署者义务与免责重申）、`NOTICE`（署名、依赖声明仅 `ecdsa`(MIT)、非加密货币声明）。
-- ⚠️ **发布硬门槛**：`AUTHOR_NAME` / `COMMERCIAL_LICENSE_CONTACT` / 仓库 URL 三处占位符
-  **必须由作者本人填写**；未填不得对外发布（Pages / 公开 hub）。
+- ✅ **三处许可占位符已于 2026-09-10 定稿填入**：版权所有人 **鹿拾（Yuanhao Lu）**、
+  商业授权联络 <https://github.com/luyuanhao>、仓库 <https://github.com/luyuanhao/stratumgenesis>。
+  fork 后改动署名或仓库地址时，须重新执行 `PUBLISH_CHECKLIST.md` §1.1 的残留占位符扫描。
+- 修正一处合规事实错误：`ecdsa` 的许可为 **MIT**（依已安装包元数据核实），此前 `NOTICE` 误写为 Apache 2.0。
 
 ### 仓库门面与依赖（新增/修改）
 

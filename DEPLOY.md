@@ -29,7 +29,7 @@
    （`data/` 已被 `.gitignore` 排除，但仍不要手工提交或挂到公网目录。）
 2. **保留 `LICENSE` / `NOTICE` / 免责声明**，并在站点显著位置标注「**非官方部署**」。
    本仓库许可为 **PolyForm Noncommercial 1.0.0**，部署者必须同时遵守其条款
-   （禁止商用；`LICENSE` 中的版权所有人目前仍是**占位符**，定稿前请留意）。
+   （禁止商用；`LICENSE` 的版权所有人已定稿（鹿拾 / Yuanhao Lu））。
 3. **不要绑定作者个人资源** —— 不要拿作者的域名、服务器、账号、API key 去部署。
 
 ---
@@ -286,7 +286,7 @@ from wsgiref.simple_server import ...
 
 - 本仓库许可为 **PolyForm Noncommercial 1.0.0**：**禁止任何商业使用与商业部署**；
   保留并随附 `LICENSE` 与 `NOTICE`，不得移除其中的声明；
-  ⚠️ `LICENSE` 里的版权所有人目前仍是**占位符**，正式对外前请等大总管定稿。
+  ⚠️ `LICENSE` 的版权所有人已定稿（鹿拾 / Yuanhao Lu，仓库 https://github.com/luyuanhao/stratumgenesis）。
 - 站点显著位置标注「**非官方部署**」，并给出上游仓库链接；
 - 不得暗示该部署由原作者运营、背书或承担任何责任；
 - 不得绑定作者个人资源（域名、服务器、账号、密钥）；
@@ -322,7 +322,7 @@ jobs:
       - name: 安装依赖
         run: pip install ecdsa
       - name: 导出可公开链快照（自动剥离私钥）
-        run: python export_public.py --in data/chain_v1.json --out chain_state.json
+        run: python export_public.py --in "你的chain-v2存档.json" --out chain_state.json --metrics metrics.json
       - name: 提交回仓库
         run: |
           git config user.name  "archive-bot"
@@ -342,8 +342,12 @@ jobs:
 ### 9.1 生成可公开快照
 
 ```bash
-python export_public.py --in data/chain_v1.json --out chain_state.json
+python export_public.py --in "你的chain-v2存档.json" --out chain_state.json --metrics metrics.json
 ```
+
+> ⚠️ **不要用本仓库自带的 `data/chain_v1.json`**：它是 **chain-v1 旧格式样本**（加载会被拒绝），
+> 只用于验证「旧版本存档被拒」行为。请改用你自己 hub 实例的存档，或先造一份干净存档：
+> `python -c "import server as s; s.build_server_state(fresh=True, persist_path=r'C:\Temp\gen.json')"`
 
 脚本保证：
 
@@ -400,7 +404,7 @@ python export_public.py --in data/chain_v1.json --out chain_state.json
 | 项 | 状态 | 备注 |
 |---|---|---|
 | `requirements.txt` | ✅ 已有（别线补充） | 内容 `ecdsa==0.19.2`；Dockerfile 仍保留「缺失则兜底装 ecdsa」的兼容分支 |
-| `LICENSE` | ✅ 已有 | **PolyForm Noncommercial 1.0.0**，禁止商用；版权所有人仍为占位符 |
+| `LICENSE` | ✅ 已有（已定稿） | **PolyForm Noncommercial 1.0.0**，禁止商用；版权所有人：鹿拾（Yuanhao Lu），仓库 https://github.com/luyuanhao/stratumgenesis |
 | `NOTICE` | ✅ 已有 | 含项目定位与免责声明 |
 | `README.md` | ✅ 已有 | 由线②持有，部署徽章/链接待线②补 |
 | `.dockerignore` | ❌ 缺失 | 建议新增；本线未被授权创建 |

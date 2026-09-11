@@ -46,13 +46,13 @@
 
 ## 4. 署名义务（如何署）
 
-保留或注明：项目名 **StratumGenesis**、版权所有人 `[占位符：作者/实体]`、
-许可文件与仓库地址 `[占位符：仓库 URL]`。
+保留或注明：项目名 **StratumGenesis**、版权所有人 **鹿拾（Yuanhao Lu）**、
+许可文件与仓库地址 <https://github.com/luyuanhao/stratumgenesis>。
 
 论文引用示例：
 
 > StratumGenesis. A language-evolution experiment recorded on a single-node blockchain.
-> PolyForm Noncommercial 1.0.0. `[占位符：仓库 URL]`. Accessed YYYY-MM-DD.
+> PolyForm Noncommercial 1.0.0. <https://github.com/luyuanhao/stratumgenesis>. Accessed YYYY-MM-DD.
 
 ## 5. 部署者义务（必须照做）
 
@@ -78,7 +78,7 @@
 如果你的用法落在 §3 里但确实是正当需求（企业内评、付费咨询中的演示素材、
 教学平台、研究合作等），请来信，我会提供单独的书面授权：
 
-- 联系邮箱：`[占位符：请填写可用邮箱，例如 name@example.com]`
+- 联系方式：<https://github.com/luyuanhao>（在该主页或本仓库 Issue 中说明来意，我会回复）
 - 申请时请说明：使用主体、使用场景、是否联网公开、是否涉及收费链路、预计期限。
 - 我保留对商业授权条款与价格的最终决定权，也可以拒绝。
 

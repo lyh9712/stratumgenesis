@@ -286,7 +286,7 @@ from wsgiref.simple_server import ...
 
 - 本仓库许可为 **PolyForm Noncommercial 1.0.0**：**禁止任何商业使用与商业部署**；
   保留并随附 `LICENSE` 与 `NOTICE`，不得移除其中的声明；
-  ⚠️ `LICENSE` 的版权所有人已定稿（鹿拾 / Yuanhao Lu，仓库 https://github.com/luyuanhao/stratumgenesis）。
+  ⚠️ `LICENSE` 的版权所有人已定稿（鹿拾 / Yuanhao Lu，仓库 https://github.com/lyh9712/stratumgenesis）。
 - 站点显著位置标注「**非官方部署**」，并给出上游仓库链接；
 - 不得暗示该部署由原作者运营、背书或承担任何责任；
 - 不得绑定作者个人资源（域名、服务器、账号、密钥）；
@@ -404,7 +404,7 @@ python export_public.py --in "你的chain-v2存档.json" --out chain_state.json 
 | 项 | 状态 | 备注 |
 |---|---|---|
 | `requirements.txt` | ✅ 已有（别线补充） | 内容 `ecdsa==0.19.2`；Dockerfile 仍保留「缺失则兜底装 ecdsa」的兼容分支 |
-| `LICENSE` | ✅ 已有（已定稿） | **PolyForm Noncommercial 1.0.0**，禁止商用；版权所有人：鹿拾（Yuanhao Lu），仓库 https://github.com/luyuanhao/stratumgenesis |
+| `LICENSE` | ✅ 已有（已定稿） | **PolyForm Noncommercial 1.0.0**，禁止商用；版权所有人：鹿拾（Yuanhao Lu），仓库 https://github.com/lyh9712/stratumgenesis |
 | `NOTICE` | ✅ 已有 | 含项目定位与免责声明 |
 | `README.md` | ✅ 已有 | 由线②持有，部署徽章/链接待线②补 |
 | `.dockerignore` | ❌ 缺失 | 建议新增；本线未被授权创建 |

@@ -3,9 +3,9 @@ chcp 65001 >nul
 setlocal enableextensions
 cd /d "%~dp0"
 
-set "REPO_URL=https://github.com/luyuanhao/stratumgenesis.git"
-set "PAGES_URL=https://github.com/luyuanhao/stratumgenesis/settings/pages"
-set "SITE_URL=https://luyuanhao.github.io/stratumgenesis/"
+set "REPO_URL=https://github.com/lyh9712/stratumgenesis.git"
+set "PAGES_URL=https://github.com/lyh9712/stratumgenesis/settings/pages"
+set "SITE_URL=https://lyh9712.github.io/stratumgenesis/"
 set "NEW_REPO=https://github.com/new?name=stratumgenesis"
 
 if /I "%~1"=="--dry-run" goto :dryrun

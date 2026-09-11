@@ -219,17 +219,17 @@ python -m unittest discover -s tests -p "test_analyze_chain.py"  # 分析器子�
 ## 9. 徽章位（待 CI 就绪后替换为真实统计）
 
 本节的徽章目前都是**手工填写的静态标签**，不代表任何持续集成的结果。
-本节徽章的真实来源（仓库：<https://github.com/luyuanhao/stratumgenesis>；CI 就绪后即可生效）：
+本节徽章的真实来源（仓库：<https://github.com/lyh9712/stratumgenesis>；CI 就绪后即可生效）：
 
 ```html
 <!-- 构建状态（GitHub Actions） -->
-[![CI](https://github.com/luyuanhao/stratumgenesis/actions/workflows/ci.yml/badge.svg)](https://github.com/luyuanhao/stratumgenesis/actions)
+[![CI](https://github.com/lyh9712/stratumgenesis/actions/workflows/ci.yml/badge.svg)](https://github.com/lyh9712/stratumgenesis/actions)
 
 <!-- 测试覆盖率（Codecov 等） -->
-[![codecov](https://codecov.io/gh/luyuanhao/stratumgenesis/branch/main/graph/badge.svg)](https://codecov.io/gh/luyuanhao/stratumgenesis)
+[![codecov](https://codecov.io/gh/lyh9712/stratumgenesis/branch/main/graph/badge.svg)](https://codecov.io/gh/lyh9712/stratumgenesis)
 
 <!-- Release 版本（若将来发布上架，再补该徽章；包名未定，此处暂不列出） -->
-[![Latest release](https://img.shields.io/github/v/release/luyuanhao/stratumgenesis)](https://github.com/luyuanhao/stratumgenesis/releases)
+[![Latest release](https://img.shields.io/github/v/release/lyh9712/stratumgenesis)](https://github.com/lyh9712/stratumgenesis/releases)
 
 <!-- 许可与运行环境 -->
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-4183c4)](LICENSE)

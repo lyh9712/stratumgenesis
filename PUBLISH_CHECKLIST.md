@@ -8,7 +8,7 @@
 ## ⛔ 硬门槛（排在最前，未满足不得发布）
 
 **许可占位符已于 2026-09-10 定稿填入**：版权所有人 **鹿拾（Yuanhao Lu）**；
-商业授权联络 <https://github.com/luyuanhao>；仓库 <https://github.com/luyuanhao/stratumgenesis>。
+商业授权联络 <https://github.com/lyh9712>；仓库 <https://github.com/lyh9712/stratumgenesis>。
 若你 fork 后改了署名或仓库地址，必须重新执行 1.1 的残留扫描。
 
 - 本仓库许可为 **PolyForm Noncommercial 1.0.0**，禁止任何商业使用与商业部署；

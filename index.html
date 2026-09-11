@@ -526,6 +526,13 @@ main{flex:1;display:flex;overflow:hidden;position:relative}
     <input id="proposal-input" placeholder="为这门语言增加一个特性……（如：函数增量扩展 / 绑定聚合）" maxlength="120">
     <button id="deduce-btn" type="submit">推演</button>
   </form>
+  <!-- 浏览器内核模式专属：存档导出/导入工具条（仅内核模式显示） -->
+  <div id="pyodide-tools" style="display:none;gap:10px;margin:8px 0 0;align-items:center">
+    <span id="pyodide-tools-label" style="font-size:11px;color:var(--faint)">浏览器内核：</span>
+    <button id="py-export-btn" type="button" class="iconbtn">导出存档</button>
+    <button id="py-import-btn" type="button" class="iconbtn">导入存档</button>
+    <input id="py-import-file" type="file" accept="application/json,.json" style="display:none">
+  </div>
   <div id="status">
     <div id="status-main">正在连接本地地层……</div>
     <div id="status-sub"></div>
@@ -598,6 +605,7 @@ const drillExit = document.getElementById("drill-exit");
 
 let chainState = null;
 let minerCursor = 0;
+let KERNEL_MODE = "backend";   // "backend" | "pyodide" | "readonly"（三态运行模式）
 
 function setStatus(main, sub, cls){
   const el = document.getElementById("status-main");
@@ -642,16 +650,28 @@ async function fetchStaticState(){
   }
 }
 
-/* 后端优先，静态兜底；两者都不可用时抛出后端原因，沿用既有错误提示 */
+/* 三态运行模式探测：本机后端(1) → 浏览器内核 Pyodide(2) → 静态只读展馆(3)。
+   后端探测失败后才等待浏览器内核就绪；内核也失败则回落只读展馆。 */
 async function loadStateSource(){
   let backendErr = null;
   try{
-    return {state: await api("/chain-state"), readonly:false};
+    return {state: await api("/chain-state"), readonly:false, kernel:"backend"};
+  }catch(err){
+    backendErr = err;
+  }
+  /* 浏览器内核（Pyodide）可用？boot 层会把桥挂到 window.__STRATUM_BRIDGE_PROMISE__。
+     解析为 bridge 对象则进入「浏览器内核」模式；为 null（加载/签名失败）则继续回落。 */
+  try{
+    const bridge = await window.__STRATUM_BRIDGE_PROMISE__;
+    if(bridge && typeof bridge.pyChainState === "function"){
+      const st = JSON.parse(await bridge.pyChainState());
+      return {state: st, readonly:false, kernel:"pyodide"};
+    }
   }catch(err){
     backendErr = err;
   }
   try{
-    return {state: await fetchStaticState(), readonly:true};
+    return {state: await fetchStaticState(), readonly:true, kernel:"readonly"};
   }catch(staticErr){
     throw backendErr;
   }
@@ -686,19 +706,26 @@ function enterReadonlyMode(){
    渲染地层剖面（数据来自 GET /chain-state 或静态快照）
    ============================================================ */
 async function loadChain(){
+  setStatus("正在连接地层……",
+            "检测运行模式：本机后端 / 浏览器内核 / 只读展馆", "");
   const source = await loadStateSource();
   chainState = normalizeState(source.state);
+  KERNEL_MODE = source.kernel || (source.readonly ? "readonly" : "backend");
   if(source.readonly) enterReadonlyMode();
+  // 浏览器内核模式下展示存档导出/导入工具条。
+  const tools = document.getElementById("pyodide-tools");
+  if(tools) tools.style.display = (KERNEL_MODE === "pyodide") ? "inline-flex" : "none";
   renderStrata(chainState);
   renderLangMap(chainState);
   updateLangStatus(chainState);
   renderGallery(chainState);
   renderSleeping(chainState);
+  const modeLabel = (KERNEL_MODE === "pyodide") ? "浏览器内核" : (KERNEL_MODE === "backend" ? "本机后端" : "只读展馆");
   if(READ_ONLY){
-    setStatus("只读展馆 · 静态链快照已载入",
+    setStatus(modeLabel + " · 静态链快照已载入",
               "休眠分支 " + chainState.sleeping_branches.length + " · 快照高度 " + chainState.chain_height, "");
   }else{
-    setStatus("地层已同步 · 第 " + currentEpochEn(chainState) + " 纪元活跃",
+    setStatus(modeLabel + " · 地层已同步 · 第 " + currentEpochEn(chainState) + " 纪元活跃",
               "休眠分支 " + chainState.sleeping_branches.length + " · 预沉积高度 " + chainState.chain_height, "");
   }
 }
@@ -816,6 +843,11 @@ function pickMiner(){
 }
 
 async function deduce(text){
+  /* 浏览器内核（Pyodide）模式：不走后端，直接在页面内签名上链 */
+  if(KERNEL_MODE === "pyodide" && window.StratumBridge){
+    await deducePyodide(text);
+    return;
+  }
   if(READ_ONLY){
     setStatus("只读展馆模式：提案需要本机后端", "请运行 python server.py 或部署一个 hub", "bad");
     return;
@@ -865,6 +897,43 @@ async function deduce(text){
     input.value = "";
   }
   deduceBtn.disabled = false;
+}
+
+/* 浏览器内核提案：复用真实 py_sandbox 的 9 项校验 + ECDSA 签名（与后端同一套逻辑） */
+async function deducePyodide(text){
+  deduceBtn.disabled = true;
+  setStatus("浏览器内核：正在构造候选区块并签名", "标准词元计数：…", "");
+  spawnParticles();
+  let resp;
+  try{
+    resp = JSON.parse(await window.StratumBridge.pyProposeText(text, "browser-kernel"));
+  }catch(err){
+    clearTickerSafe();
+    setStatus("浏览器内核执行失败", String(err), "bad");
+    deduceBtn.disabled = false;
+    return;
+  }
+  deduceBtn.disabled = false;
+  if(resp.success){
+    await loadChain();   // 从内核重新拉取链状态（提案已落库并持久化到 localStorage）
+    const tip = chainState.blocks.find(b=>b.height===resp.chain_height);
+    if(tip){
+      const el = document.querySelector('#strata .layer[data-height="'+tip.height+'"]');
+      if(el) el.classList.add("new");
+    }
+    setStatus("浏览器内核：校验通过 · 已写入主链", "高度 H" + resp.chain_height, "ok");
+    if(tip) openSandbox(tip.demo_code, tip.feature_name);
+    input.value = "";
+  }else{
+    shatterLayer(resp.reason || "校验未通过");
+    setStatus("未写入地层 · " + (resp.reason || "校验未通过"), "休眠分支 " + chainState.sleeping_branches.length, "bad");
+    await refreshSleepingOnly();
+    input.value = "";
+  }
+}
+
+function clearTickerSafe(){
+  /* 浏览器内核路径没有 ticker 计时器，这里仅占位以兼容 deduce 文案调用 */
 }
 
 function spawnParticles(){
@@ -995,6 +1064,29 @@ document.getElementById("sb-run").addEventListener("click", async ()=>{
   sbOutput.innerHTML = "";
   if(READ_ONLY){
     sbOutput.innerHTML = '<div class="err">只读展馆模式没有后端解释器，无法运行 NovScript。</div>';
+    return;
+  }
+  /* 浏览器内核（Pyodide）模式：沙箱直接在页面内真实执行 NovScript */
+  if(KERNEL_MODE === "pyodide" && window.StratumBridge){
+    const code = sbCode.value;
+    const line = (html, cls)=>{ const d=document.createElement("div"); if(cls) d.className=cls; d.innerHTML=html; sbOutput.appendChild(d); };
+    try{
+      const resp = JSON.parse(await window.StratumBridge.pyEval(code));
+      if(resp.ok){
+        line("→ " + esc(JSON.stringify(resp.value)), "");
+        line("浏览器内核真实沙箱执行 · 步数 " + resp.steps, "meta");
+      }else{
+        line("错误：" + esc(resp.error_type || "未知错误") + " · " + esc(resp.error_message || ""), "err");
+        if(typeof buildUnimportedHint === "function"){
+          try{
+            const hint = buildUnimportedHint(resp);
+            if(hint) sbOutput.appendChild(hint);
+          }catch(_){ /* 提示构造失败不影响主错误展示 */ }
+        }
+      }
+    }catch(err){
+      line("浏览器内核执行失败：" + esc(String(err)), "err");
+    }
     return;
   }
   const code = sbCode.value;
@@ -1598,8 +1690,12 @@ function renderGallery(state){
 /* ============================================================
    启动：拉取真实链状态并渲染
    ============================================================ */
-loadChain().catch(err=>{
-  setStatus("无法连接本地服务，请先运行 python server.py", String(err), "bad");
+/* 推迟到 DOMContentLoaded：确保 web/pyodide_boot.js 已设置
+   window.__STRATUM_BRIDGE_PROMISE__ 后再启动链加载（三态探测依赖它）。 */
+window.addEventListener("DOMContentLoaded", () => {
+  loadChain().catch(err=>{
+    setStatus("无法连接本地服务，请先运行 python server.py", String(err), "bad");
+  });
 });
 
 /* ============================================================
@@ -1781,6 +1877,18 @@ function showSleepingDetail(b, state){
 /* 轻量刷新休眠分支侧栏（不重建地层剖面，保留碎裂动画；失败时调用） */
 async function refreshSleepingOnly(){
   if(READ_ONLY) return;   /* 线④：只读展馆无后端，无需也不应刷新 */
+  /* 浏览器内核模式：直接从内核桥拉取休眠分支 */
+  if(KERNEL_MODE === "pyodide" && window.StratumBridge){
+    try{
+      const st = JSON.parse(await window.StratumBridge.pyChainState());
+      if(chainState) chainState.sleeping_branches = st.sleeping_branches || [];
+      renderSleeping(chainState || st);
+      const cnt = (st.sleeping_branches || []).length;
+      const sub = document.getElementById("status-sub");
+      if(sub) sub.textContent = "休眠分支 " + cnt + " · 内核高度 " + st.chain_height;
+    }catch(e){ /* 内核不可达时静默 */ }
+    return;
+  }
   try{
     const st = await api("/chain-state");
     if(chainState) chainState.sleeping_branches = st.sleeping_branches || [];
@@ -1802,6 +1910,42 @@ const sleepingClose = document.getElementById("sleeping-close");
 if(sleepingClose && SLEEPING_SIDE){
   sleepingClose.addEventListener("click", ()=>{ SLEEPING_SIDE.classList.remove("open"); });
 }
+
+/* ============================================================
+   v0.3 卡 4/4：浏览器内核（Pyodide）脚本与工具条交互
+   - 引入 web/bridge.js（定义 createStratumBridge）与 web/pyodide_boot.js
+     （加载 Pyodide、挂载模块、安装 ecdsa、创建桥、恢复 localStorage 存档）。
+   - 仅绑定新增 DOM（#pyodide-tools 及其子元素），不触碰任何既有 id / class。
+   ============================================================ */
+(function bindPyodideTools(){
+  const exportBtn = document.getElementById("py-export-btn");
+  const importBtn = document.getElementById("py-import-btn");
+  const importFile = document.getElementById("py-import-file");
+  if(exportBtn){
+    exportBtn.addEventListener("click", async () => {
+      if(!(KERNEL_MODE === "pyodide" && window.StratumBridge)) return;
+      try{ await window.StratumBridge.downloadArchive("stratum_chain_v2.json"); }
+      catch(e){ alert("导出失败：" + e); }
+    });
+  }
+  if(importBtn && importFile){
+    importBtn.addEventListener("click", () => importFile.click());
+    importFile.addEventListener("change", async () => {
+      if(!(KERNEL_MODE === "pyodide" && window.StratumBridge)) return;
+      const file = importFile.files && importFile.files[0];
+      if(!file) return;
+      try{
+        const text = await file.text();
+        const res = JSON.parse(await window.StratumBridge.pyImportArchive(text));
+        if(res.success){ await loadChain(); }
+        else { alert("导入失败：" + (res.reason || "未知错误")); }
+      }catch(e){ alert("导入失败：" + e); }
+      importFile.value = "";
+    });
+  }
+})();
 </script>
+<script src="web/bridge.js"></script>
+<script src="web/pyodide_boot.js"></script>
 </body>
 </html>

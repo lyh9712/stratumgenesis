@@ -7,5 +7,3 @@ data/
 .codebuddy/
 .workbuddy/
 *.bak-*
-# 浏览器内核的 vendored 运行时（约 14MB，按 web/README.md 第 4 节自行下载）
-web/vendor/

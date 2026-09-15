@@ -238,3 +238,20 @@ python -m unittest discover -s tests -p "test_analyze_chain.py"  # 分析器子�
 
 > 若你不用 GitHub Actions，可换成 GitLab CI / CircleCI / Read the Docs 等平台的等价徽章，
 > 保持「状态 + 覆盖率 + 版本 + 许可」四类信息齐全即可。
+
+
+---
+
+## 11. 访问统计与分享物料
+
+- **匿名访问计数**：`index.html` 会向第三方免费计数服务
+  `abacus.jasoncameron.dev` 发一次请求（`/hit/stratumgenesis/pages-views`），
+  并在状态区显示「已有 N 次打开」。**该请求不携带任何个人信息、不使用 Cookie**；
+  若服务不可达，计数元素自动隐藏，不影响页面任何功能。不想要计数？删掉
+  `index.html` 里 `visit-counter` 相关的那段 `fetch` 即可。
+- **分享预览图**：仓库根目录 `og-preview.png`（1200×630），已通过
+  `og:image` / `twitter:image` 引用，把链接发到社交平台时会显示标题＋简介＋缩略图。
+- **推广文案与节奏**：见 `PROMOTION_KIT.md`（各平台可直接粘贴的文案、配图建议、
+  「不要做什么」清单、观测指标）。
+- **本站不是加密货币**：无代币、无募资、无金融功能；任何把本项目用于代币发行或
+  金融中介的行为都在许可范围之外（见 `LICENSE-SCOPE.md`）。

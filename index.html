@@ -3,6 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="StratumGenesis：一群人和他们各自的 AI 从同一套内核规则出发，一起从零沉积出一门前所未有的编程语言。地层即语言，剖面即创造史。非加密货币、无代币。">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="StratumGenesis">
+<meta property="og:title" content="StratumGenesis · 用地质地层的方式，创造一门新语言">
+<meta property="og:description" content="每 100 层是一个纪元；纪元翻页语言会「失忆」，旧特性必须靠「引种」复活。看不同 AI 的创造，谁被反复引种、谁被遗忘。">
+<meta property="og:url" content="https://lyh9712.github.io/stratumgenesis/">
+<meta property="og:image" content="https://lyh9712.github.io/stratumgenesis/og-preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="StratumGenesis · 用地质地层的方式，创造一门新语言">
+<meta name="twitter:description" content="一群人和他们各自的 AI 从同一套内核规则出发，一起从零沉积出一门新语言。非加密货币、无代币。">
+<meta name="twitter:image" content="https://lyh9712.github.io/stratumgenesis/og-preview.png">
+<style>
+#visit-counter{font-size:11px;color:#8a7a63;margin-top:3px}
+#onboard{position:fixed;inset:0;z-index:9999;background:rgba(20,14,8,.74);display:flex;align-items:center;justify-content:center;padding:20px}
+#onboard[hidden]{display:none}
+#onboard .ob-card{max-width:780px;max-height:86vh;overflow:auto;background:#1d1710;color:#f2e6d0;border:1px solid #6b4a26;border-radius:14px;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.6);font-size:14px;line-height:1.75}
+#onboard h2{margin:0 0 8px;font-size:20px}
+#onboard .ob-lead{margin:0 0 14px;color:#c9b48f}
+#onboard .ob-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#onboard .ob-grid>div{background:rgba(255,235,200,.06);border:1px solid rgba(255,235,200,.14);border-radius:10px;padding:12px 14px}
+#onboard .ob-grid b{color:#f0d9a8}
+#onboard .ob-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+#onboard .ob-hint{font-size:12px;color:#a99572}
+#onboard-close{cursor:pointer;background:#f0d9a8;color:#2a1c0e;border:0;border-radius:999px;padding:9px 20px;font-weight:700}
+#onboard-help{position:fixed;right:14px;bottom:14px;z-index:9998;width:34px;height:34px;border-radius:50%;border:1px solid #6b4a26;background:#241a12;color:#f0d9a8;cursor:pointer;font-weight:700;font-size:15px}
+@media (max-width:640px){#onboard .ob-grid{grid-template-columns:1fr}#onboard .ob-card{padding:16px}}
+</style>
 <title>StratumGenesis · 地层创世实验（本地前后端原型）</title>
 <!--
   StratumGenesis 地层创世实验 · 前后端打通原型
@@ -535,6 +564,7 @@ main{flex:1;display:flex;overflow:hidden;position:relative}
   </div>
   <div id="status">
     <div id="status-main">正在连接本地地层……</div>
+    <div id="visit-counter" hidden></div>
     <div id="status-sub"></div>
     <div id="lang-status">
       <span id="lang-status-text">语言版本加载中……</span>
@@ -1947,5 +1977,41 @@ if(sleepingClose && SLEEPING_SIDE){
 </script>
 <script src="web/bridge.js"></script>
 <script src="web/pyodide_boot.js"></script>
+<div id="onboard" hidden>
+  <div class="ob-card">
+    <h2>30 秒看懂 StratumGenesis</h2>
+    <p class="ob-lead">一群人和他们各自的 AI，从同一套内核规则出发，一起从零「沉积」出一门前所未有的编程语言。</p>
+    <div class="ob-grid">
+      <div><b>这是什么</b><br>链上记的不是转账，而是一门语言一层层的成长史。最底下是不会被修改的「创世内核」，往上每一层都是一条新增的语言规则。</div>
+      <div><b>怎么玩</b><br>在顶部输入框填一个特性（如「减法」「列表」「条件」）→ 点「推演」→ 校验通过就沉积成新岩层。点岩层看详情，还能打开沙箱真的跑代码（试试阶乘）。</div>
+      <div><b>失忆与引种</b><br>每 100 层是一个纪元；纪元一翻页，语言会「失忆」——旧特性必须靠「引种」重新激活。于是能看出：哪些设计被反复引种（活着），哪些被遗忘。</div>
+      <div><b>它不是什么</b><br>不是加密货币、没有代币、链内凭证无现实价值；不调用真实大模型（PoI 为 mock）；无 P2P、无公网鉴权。是实验原型，不是生产系统，禁止商业使用。</div>
+    </div>
+    <div class="ob-foot">
+      <span class="ob-hint">提示：想亲手提案，请等状态栏显示「浏览器内核」（首次需加载约 12MB 运行时，约 3–5 秒）。</span>
+      <button id="onboard-close">开始钻探</button>
+    </div>
+  </div>
+</div>
+<button id="onboard-help" title="30 秒看懂">?</button>
+<script>
+(function(){
+  var KEY='sg_onboarded_v1';
+  var box=document.getElementById('onboard');
+  function open(){ if(box) box.hidden=false; }
+  function close(){ if(box) box.hidden=true; try{ localStorage.setItem(KEY,'1'); }catch(e){} }
+  var c=document.getElementById('onboard-close'); if(c) c.addEventListener('click', close);
+  var h=document.getElementById('onboard-help'); if(h) h.addEventListener('click', open);
+  var seen=false; try{ seen = localStorage.getItem(KEY)==='1'; }catch(e){}
+  if(!seen) setTimeout(open, 600);
+  var el=document.getElementById('visit-counter');
+  if(el){
+    fetch('https://abacus.jasoncameron.dev/hit/stratumgenesis/pages-views',{cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if(d && typeof d.value==='number'){ el.textContent='已有 '+d.value+' 次打开（匿名计数 · 第三方免费服务）'; el.hidden=false; } })
+      .catch(function(){ el.hidden=true; });
+  }
+})();
+</script>
 </body>
 </html>
